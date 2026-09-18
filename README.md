@@ -3,6 +3,8 @@
 Get Us There provides searchable, server-authoritative teleport support for
 AzerothCore WotLK 3.3.5a.
 
+**Companion WoW addon:** https://github.com/apw1963/GetUsThere
+
 The client addon asks for destinations and requests travel. The server decides
 which destinations are visible, whether the player is allowed to use them, and
 whether a teleport is safe to perform.
