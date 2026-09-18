@@ -1,0 +1,111 @@
+###################################################################################################
+# GET US THERE
+#
+# Searchable, server-authoritative teleport support for AzerothCore.
+#
+# Runtime configuration loading and reload support are provided by the module.
+###################################################################################################
+
+#
+# Enable module functionality.
+#
+GetUsThere.Enable = 1
+
+#
+# Realm policy profile.
+#
+# Valid values:
+#
+#   Auto
+#       Uses AzerothCore's realm type.
+#
+#       PvE / RP realms use the conservative policy family.
+#       PvP / RP-PvP / FFA-PvP realms use the PvP policy family.
+#
+#   PvE
+#       Forces the conservative PvE/RP policy family.
+#
+#   PvP
+#       Forces the PvP/RP-PvP policy family.
+#
+GetUsThere.PolicyProfile = "Auto"
+
+#
+# Faction protections
+#
+GetUsThere.BlockRivalCapitals = 1
+GetUsThere.BlockRivalStarterZones = 1
+
+#
+# Characters may always use their own faction capitals regardless of the
+# destination level policy.
+#
+GetUsThere.AllowOwnFactionCapitalsAtAnyLevel = 1
+
+#
+# Destination level protection
+#
+# MaxDeficit = 9:
+#   A character may be at most 9 levels below the destination's configured
+#   recommended level. A deficit of 10 levels or more is rejected.
+#
+# Valid range: 0-79.
+#
+GetUsThere.LevelRestriction.Enable = 1
+GetUsThere.LevelRestriction.MaxDeficit = 9
+
+#
+# PvP-family realm behavior
+#
+GetUsThere.PvP.AllowRivalFactionTerritory = 1
+GetUsThere.PvP.AllowRivalCapitals = 0
+GetUsThere.PvP.AllowRivalStarterZones = 0
+
+#
+# Teleport execution safety
+#
+# Minimum number of seconds between successful Get Us There teleports
+# for the same player. Set to 0 to disable the cooldown.
+GetUsThere.Teleport.CooldownSeconds = 5
+
+# By default Get Us There cannot be used to leave a dungeon or raid.
+# These settings apply to the player's SOURCE map.
+GetUsThere.Teleport.AllowFromDungeon = 0
+GetUsThere.Teleport.AllowFromRaid = 0
+
+# Group / raid authorization
+#
+GetUsThere.GroupTeleport.RequireLeader = 1
+GetUsThere.RaidTeleport.RequireLeader = 1
+
+
+#
+# Development / testing override
+#
+# Disabled by default.
+#
+# Authorized accounts may explicitly use SEARCH_TEST and TELEPORT_TEST.
+# Normal SEARCH and TELEPORT requests are never affected by this setting.
+#
+# Test override bypasses:
+#   destination faction/territory/capital/starter restrictions
+#   destination recommended-level restriction
+#   combat restriction
+#   dungeon/raid source-map restriction
+#   successful teleport cooldown
+#
+# Test override still enforces:
+#   curated and enabled Get Us There destination
+#   valid AzerothCore game_tele destination
+#   alive/non-ghost state
+#   not already teleporting
+#   not in flight
+#   not on a transport
+#   not in battleground/arena
+#   SEARCH/TELEPORT admission throttles
+#
+# AllowedAccountIds is a comma-separated list of authenticated account IDs.
+# An empty or malformed list authorizes nobody.
+#
+GetUsThere.TestOverride.Enable = 0
+GetUsThere.TestOverride.AllowedAccountIds = ""

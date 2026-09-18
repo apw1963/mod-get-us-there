@@ -1,0 +1,6 @@
+## Interface: 30300
+## Title: Get Us There
+## Notes: Server-authoritative travel interface for Get Us There.
+## Version: 0.1.0
+
+GetUsThere.lua
