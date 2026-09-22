@@ -1,0 +1,78 @@
+-- Get Us There
+-- Settlement expansion batch 7 world database update
+--
+-- Generated from the map-aware clean-candidate audit.
+-- Only candidates with FLAGS=NONE are included.
+-- Stock AzerothCore game_tele rows remain authoritative for coordinates.
+-- territory_faction: 0 = neutral, 1 = Alliance, 2 = Horde.
+
+INSERT INTO `mod_get_us_there_destination`
+(
+    `game_tele_id`,
+    `display_name`,
+    `category`,
+    `territory_faction`,
+    `recommended_level`,
+    `is_capital`,
+    `is_protected_faction_zone`,
+    `enabled`,
+    `group_teleport_allowed`,
+    `sort_order`
+)
+VALUES
+    (1021, 'The Bulwark', 'Settlement', 2, 9, 0, 0, 1, 1, 1060),
+    (141, 'Blood Watch', 'Settlement', 1, 10, 0, 0, 1, 1, 1070),
+    (1094, 'Thelsamar', 'Settlement', 1, 10, 0, 0, 1, 1, 1080),
+    (1240, 'Tranquillien', 'Settlement', 2, 10, 0, 0, 1, 1, 1090),
+    (798, 'Rut''theran Village', 'Settlement', 1, 11, 0, 0, 1, 1, 1100),
+    (966, 'Sun Rock Retreat', 'Settlement', 2, 20, 0, 0, 1, 1, 1110),
+    (923, 'Splintertree Post', 'Settlement', 2, 25, 0, 0, 1, 1, 1120),
+    (946, 'Stonetalon Peak', 'Settlement', 1, 25, 0, 0, 1, 1, 1130),
+    (753, 'Rebel Camp', 'Settlement', 1, 30, 0, 0, 1, 1, 1140),
+    (759, 'Refuge Pointe', 'Settlement', 1, 30, 0, 0, 1, 1, 1150),
+    (842, 'Shadowprey Village', 'Settlement', 2, 33, 0, 0, 1, 1, 1160),
+    (159, 'Brackenwall Village', 'Settlement', 2, 36, 0, 0, 1, 1, 1170),
+    (646, 'Mudsprocket', 'Settlement', 0, 38, 0, 0, 1, 1, 1180),
+    (187, 'Camp Mojache', 'Settlement', 2, 42, 0, 0, 1, 1, 1190),
+    (340, 'Emerald Sanctuary', 'Settlement', 0, 48, 0, 0, 1, 1, 1200),
+    (1280, 'Valormok', 'Settlement', 2, 49, 0, 0, 1, 1, 1210),
+    (663, 'Nethergarde Keep', 'Settlement', 1, 50, 0, 0, 1, 1, 1220),
+    (978, 'Talonbranch Glade', 'Settlement', 1, 53, 0, 0, 1, 1, 1230),
+    (640, 'Morgan''s Vigil', 'Settlement', 1, 55, 0, 0, 1, 1, 1240),
+    (856, 'Shatter Point', 'Settlement', 1, 58, 0, 0, 1, 1, 1250),
+    (633, 'Mok''Nathal Village', 'Settlement', 2, 65, 0, 0, 1, 1, 1260),
+    (1229, 'Toshley''s Station', 'Settlement', 1, 65, 0, 0, 1, 1, 1270),
+    (223, 'Cosmowrench', 'Settlement', 0, 67, 0, 0, 1, 1, 1280),
+    (344, 'Evergrove', 'Settlement', 0, 67, 0, 0, 1, 1, 1290),
+    (1855, 'Apothecary Camp', 'Settlement', 2, 70, 0, 0, 1, 1, 1300),
+    (1387, 'Camp Winterhoof', 'Settlement', 2, 70, 0, 0, 1, 1, 1310),
+    (1392, 'Fizzcrank Airstrip', 'Settlement', 1, 70, 0, 0, 1, 1, 1320),
+    (1386, 'Fort Wildervar', 'Settlement', 1, 70, 0, 0, 1, 1, 1330),
+    (1383, 'Kamagua', 'Settlement', 0, 70, 0, 0, 1, 1, 1340),
+    (1382, 'New Agamand', 'Settlement', 2, 70, 0, 0, 1, 1, 1350),
+    (1397, 'Taunka''le Village', 'Settlement', 2, 70, 0, 0, 1, 1, 1360),
+    (1396, 'Unu''pe', 'Settlement', 0, 70, 0, 0, 1, 1, 1370),
+    (1390, 'Valiance Keep', 'Settlement', 1, 70, 0, 0, 1, 1, 1380),
+    (1385, 'Vengeance Landing', 'Settlement', 2, 70, 0, 0, 1, 1, 1390),
+    (1384, 'Westguard Keep', 'Settlement', 1, 70, 0, 0, 1, 1, 1400),
+    (1394, 'Bor''gorok Outpost', 'Settlement', 2, 71, 0, 0, 1, 1, 1410),
+    (1850, 'Stars'' Rest', 'Settlement', 1, 71, 0, 0, 1, 1, 1420),
+    (1846, 'Agmar''s Hammer', 'Settlement', 2, 72, 0, 0, 1, 1, 1430),
+    (1811, 'Fordragon Hold', 'Settlement', 1, 72, 0, 0, 1, 1, 1440),
+    (1416, 'Amberpine Lodge', 'Settlement', 1, 73, 0, 0, 1, 1, 1450),
+    (1834, 'Venomspite', 'Settlement', 2, 73, 0, 0, 1, 1, 1460),
+    (1417, 'Wintergarde Keep', 'Settlement', 1, 73, 0, 0, 1, 1, 1470),
+    (1808, 'Camp Oneqwah', 'Settlement', 2, 74, 0, 0, 1, 1, 1480),
+    (1801, 'Conquest Hold', 'Settlement', 2, 74, 0, 0, 1, 1, 1490),
+    (1705, 'Ebon Watch', 'Settlement', 0, 74, 0, 0, 1, 1, 1500),
+    (1700, 'Light''s Breach', 'Settlement', 0, 75, 0, 0, 1, 1, 1510),
+    (1552, 'Nesingwary Base Camp', 'Settlement', 0, 75, 0, 0, 1, 1, 1520),
+    (1559, 'River''s Heart', 'Settlement', 0, 76, 0, 0, 1, 1, 1530),
+    (1685, 'Zim''Torga', 'Settlement', 0, 76, 0, 0, 1, 1, 1540),
+    (1654, 'K3', 'Settlement', 0, 77, 0, 0, 1, 1, 1550),
+    (1619, 'The Argent Vanguard', 'Settlement', 0, 77, 0, 0, 1, 1, 1560),
+    (1627, 'Frosthold', 'Settlement', 1, 78, 0, 0, 1, 1, 1570),
+    (1643, 'Camp Tunka''lo', 'Settlement', 2, 80, 0, 0, 1, 1, 1580),
+    (1768, 'Sunreaver''s Command', 'Settlement', 2, 80, 0, 0, 1, 1, 1590),
+    (1420, 'The Shadow Vault', 'Settlement', 2, 80, 0, 0, 1, 1, 1600),
+    (1767, 'Windrunner''s Overlook', 'Settlement', 1, 80, 0, 0, 1, 1, 1610);

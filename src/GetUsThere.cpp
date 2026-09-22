@@ -11,9 +11,11 @@
 // Addon SEARCH exposure, policy filtering, teleport execution, and group/raid
 // behavior are intentionally implemented separately.
 
+#include "BattlefieldMgr.h"
 #include "Chat.h"
 #include "ConfigValueCache.h"
 #include "DatabaseEnv.h"
+#include "LFGMgr.h"
 #include "Log.h"
 #include "Map.h"
 #include "MapMgr.h"
@@ -49,6 +51,7 @@ enum class GetUsThereConfig : uint32
     TeleportAllowFromDungeon,
     TeleportAllowFromRaid,
     TestOverrideEnable,
+    TestOverrideAllowAllAccounts,
     TestOverrideAllowedAccountIds,
     GroupTeleportRequireLeader,
     RaidTeleportRequireLeader,
@@ -156,7 +159,12 @@ protected:
         SetConfigValue<bool>(
             GetUsThereConfig::TestOverrideEnable,
             "GetUsThere.TestOverride.Enable",
-            false);
+            true);
+
+        SetConfigValue<bool>(
+            GetUsThereConfig::TestOverrideAllowAllAccounts,
+            "GetUsThere.TestOverride.AllowAllAccounts",
+            true);
 
         SetConfigValue<std::string>(
             GetUsThereConfig::TestOverrideAllowedAccountIds,
@@ -182,6 +190,32 @@ enum class GetUsThereFaction : uint8
     Horde = 2
 };
 
+enum class GetUsThereArrivalMode : uint8
+{
+    Outside = 0,
+    Inside = 1
+};
+
+enum class GetUsThereArrivalSourceType : uint8
+{
+    GameTele = 0,
+    LfgDungeon = 1,
+    AreaTrigger = 2
+};
+
+struct GetUsThereArrivalChoice
+{
+    uint32 gameTeleId = 0;
+    uint16 choiceId = 0;
+    GetUsThereArrivalMode arrivalMode = GetUsThereArrivalMode::Outside;
+    std::string displayLabel;
+    GetUsThereArrivalSourceType sourceType =
+        GetUsThereArrivalSourceType::GameTele;
+    uint32 sourceId = 0;
+    bool isDefault = false;
+    bool enabled = true;
+};
+
 struct GetUsThereDestination
 {
     uint32 gameTeleId = 0;
@@ -203,6 +237,7 @@ public:
     void Load()
     {
         _destinations.clear();
+        _arrivalChoices.clear();
 
         QueryResult destinationResult = WorldDatabase.Query(
             "SELECT "
@@ -427,6 +462,306 @@ public:
             rejectedDestinations,
             loadedAliases,
             rejectedAliases);
+
+        LoadArrivalChoices();
+    }
+
+    void LoadArrivalChoices()
+    {
+        QueryResult choiceResult = WorldDatabase.Query(
+            "SELECT "
+            "game_tele_id, "
+            "choice_id, "
+            "arrival_mode, "
+            "display_label, "
+            "source_type, "
+            "source_id, "
+            "is_default, "
+            "enabled "
+            "FROM mod_get_us_there_arrival_choice "
+            "ORDER BY game_tele_id, choice_id");
+
+        if (!choiceResult)
+        {
+            LOG_WARN(
+                "server.loading",
+                "GetUsThere: loaded 0 arrival choices from "
+                "`mod_get_us_there_arrival_choice`.");
+
+            return;
+        }
+
+        std::unordered_map<uint32, std::size_t> seenRowsByParent;
+
+        do
+        {
+            Field* fields = choiceResult->Fetch();
+
+            uint32 const gameTeleId = fields[0].Get<uint32>();
+            ++seenRowsByParent[gameTeleId];
+            uint32 const choiceId = fields[1].Get<uint32>();
+            std::string const arrivalMode = fields[2].Get<std::string>();
+            std::string const displayLabel = fields[3].Get<std::string>();
+            std::string const sourceType = fields[4].Get<std::string>();
+            uint32 const sourceId = fields[5].Get<uint32>();
+            uint32 const isDefault = fields[6].Get<uint32>();
+            uint32 const enabled = fields[7].Get<uint32>();
+
+            if (_destinations.find(gameTeleId) == _destinations.end())
+            {
+                LOG_WARN(
+                    "server.loading",
+                    "GetUsThere: arrival choice references destination "
+                    "game_tele id {} that was not loaded; row ignored.",
+                    gameTeleId);
+
+                continue;
+            }
+
+            if (choiceId == 0u || choiceId > 65535u)
+            {
+                LOG_WARN(
+                    "server.loading",
+                    "GetUsThere: arrival choice for game_tele id {} has "
+                    "invalid choice_id {}; row ignored.",
+                    gameTeleId,
+                    choiceId);
+
+                continue;
+            }
+
+            if (displayLabel.empty())
+            {
+                LOG_WARN(
+                    "server.loading",
+                    "GetUsThere: arrival choice for game_tele id {} choice "
+                    "{} has an empty display_label; row ignored.",
+                    gameTeleId,
+                    choiceId);
+
+                continue;
+            }
+
+            if (sourceId == 0u)
+            {
+                LOG_WARN(
+                    "server.loading",
+                    "GetUsThere: arrival choice for game_tele id {} choice "
+                    "{} has source_id 0; row ignored.",
+                    gameTeleId,
+                    choiceId);
+
+                continue;
+            }
+
+            if (isDefault > 1u || enabled > 1u)
+            {
+                LOG_WARN(
+                    "server.loading",
+                    "GetUsThere: arrival choice for game_tele id {} choice "
+                    "{} contains an invalid boolean value; row ignored.",
+                    gameTeleId,
+                    choiceId);
+
+                continue;
+            }
+
+            GetUsThereArrivalMode parsedArrivalMode;
+
+            if (arrivalMode == "OUTSIDE")
+                parsedArrivalMode = GetUsThereArrivalMode::Outside;
+            else if (arrivalMode == "INSIDE")
+                parsedArrivalMode = GetUsThereArrivalMode::Inside;
+            else
+            {
+                LOG_WARN(
+                    "server.loading",
+                    "GetUsThere: arrival choice for game_tele id {} choice "
+                    "{} has invalid arrival_mode '{}'; row ignored.",
+                    gameTeleId,
+                    choiceId,
+                    arrivalMode);
+
+                continue;
+            }
+
+            GetUsThereArrivalSourceType parsedSourceType;
+
+            if (sourceType == "GAME_TELE")
+                parsedSourceType = GetUsThereArrivalSourceType::GameTele;
+            else if (sourceType == "LFG_DUNGEON")
+                parsedSourceType = GetUsThereArrivalSourceType::LfgDungeon;
+            else if (sourceType == "AREA_TRIGGER")
+                parsedSourceType = GetUsThereArrivalSourceType::AreaTrigger;
+            else
+            {
+                LOG_WARN(
+                    "server.loading",
+                    "GetUsThere: arrival choice for game_tele id {} choice "
+                    "{} has invalid source_type '{}'; row ignored.",
+                    gameTeleId,
+                    choiceId,
+                    sourceType);
+
+                continue;
+            }
+
+            if ((parsedArrivalMode == GetUsThereArrivalMode::Outside &&
+                 (choiceId > 99u ||
+                  parsedSourceType != GetUsThereArrivalSourceType::GameTele)) ||
+                (parsedArrivalMode == GetUsThereArrivalMode::Inside &&
+                 (choiceId < 101u || choiceId > 199u ||
+                  parsedSourceType == GetUsThereArrivalSourceType::GameTele)))
+            {
+                LOG_WARN(
+                    "server.loading",
+                    "GetUsThere: arrival choice for game_tele id {} choice "
+                    "{} violates arrival-mode/source contract; row ignored.",
+                    gameTeleId,
+                    choiceId);
+
+                continue;
+            }
+
+            if (isDefault != 0u &&
+                (choiceId != 1u ||
+                 parsedArrivalMode != GetUsThereArrivalMode::Outside))
+            {
+                LOG_WARN(
+                    "server.loading",
+                    "GetUsThere: arrival choice for game_tele id {} choice "
+                    "{} has invalid default metadata; row ignored.",
+                    gameTeleId,
+                    choiceId);
+
+                continue;
+            }
+
+            bool sourceValid = false;
+
+            switch (parsedSourceType)
+            {
+                case GetUsThereArrivalSourceType::GameTele:
+                    sourceValid =
+                        sObjectMgr->GetGameTele(sourceId) != nullptr;
+                    break;
+
+                case GetUsThereArrivalSourceType::LfgDungeon:
+                    sourceValid =
+                        sLFGMgr->GetLFGDungeon(sourceId) != nullptr;
+                    break;
+
+                case GetUsThereArrivalSourceType::AreaTrigger:
+                    sourceValid =
+                        sObjectMgr->GetAreaTriggerTeleport(sourceId) != nullptr;
+                    break;
+            }
+
+            if (!sourceValid)
+            {
+                LOG_WARN(
+                    "server.loading",
+                    "GetUsThere: arrival choice for game_tele id {} choice "
+                    "{} references missing {} source id {}; row ignored.",
+                    gameTeleId,
+                    choiceId,
+                    sourceType,
+                    sourceId);
+
+                continue;
+            }
+
+            auto& choices = _arrivalChoices[gameTeleId];
+
+            auto const duplicateItr = std::find_if(
+                choices.begin(),
+                choices.end(),
+                [choiceId](GetUsThereArrivalChoice const& choice)
+                {
+                    return choice.choiceId == choiceId;
+                });
+
+            if (duplicateItr != choices.end())
+            {
+                LOG_WARN(
+                    "server.loading",
+                    "GetUsThere: duplicate arrival choice for game_tele id {} "
+                    "choice {}; duplicate row ignored.",
+                    gameTeleId,
+                    choiceId);
+
+                continue;
+            }
+
+            GetUsThereArrivalChoice choice;
+            choice.gameTeleId = gameTeleId;
+            choice.choiceId = static_cast<uint16>(choiceId);
+            choice.arrivalMode = parsedArrivalMode;
+            choice.displayLabel = displayLabel;
+            choice.sourceType = parsedSourceType;
+            choice.sourceId = sourceId;
+            choice.isDefault = isDefault != 0u;
+            choice.enabled = enabled != 0u;
+
+            choices.push_back(choice);
+        }
+        while (choiceResult->NextRow());
+
+        for (auto choiceSetItr = _arrivalChoices.begin();
+             choiceSetItr != _arrivalChoices.end();)
+        {
+            uint32 const gameTeleId = choiceSetItr->first;
+            std::vector<GetUsThereArrivalChoice> const& choices =
+                choiceSetItr->second;
+
+            bool validChoiceSet = true;
+
+            auto const seenItr = seenRowsByParent.find(gameTeleId);
+
+            if (seenItr == seenRowsByParent.end() ||
+                seenItr->second != choices.size())
+            {
+                validChoiceSet = false;
+            }
+
+            std::size_t defaultCount = 0;
+            GetUsThereArrivalChoice const* defaultChoice = nullptr;
+
+            for (GetUsThereArrivalChoice const& choice : choices)
+            {
+                if (choice.isDefault)
+                {
+                    ++defaultCount;
+                    defaultChoice = &choice;
+                }
+            }
+
+            if (defaultCount != 1u ||
+                !defaultChoice ||
+                defaultChoice->choiceId != 1u ||
+                !defaultChoice->enabled ||
+                defaultChoice->arrivalMode != GetUsThereArrivalMode::Outside ||
+                defaultChoice->sourceType !=
+                    GetUsThereArrivalSourceType::GameTele ||
+                defaultChoice->sourceId != gameTeleId)
+            {
+                validChoiceSet = false;
+            }
+
+            if (!validChoiceSet)
+            {
+                LOG_WARN(
+                    "server.loading",
+                    "GetUsThere: arrival choices for game_tele id {} failed "
+                    "whole-parent integrity; choice set unavailable.",
+                    gameTeleId);
+
+                choiceSetItr = _arrivalChoices.erase(choiceSetItr);
+                continue;
+            }
+
+            ++choiceSetItr;
+        }
     }
 
     std::vector<GetUsThereDestination> Search(
@@ -522,8 +857,42 @@ public:
         return &destinationItr->second;
     }
 
+    std::vector<GetUsThereArrivalChoice> const* FindArrivalChoices(
+        uint32 gameTeleId) const
+    {
+        auto const choiceItr = _arrivalChoices.find(gameTeleId);
+
+        if (choiceItr == _arrivalChoices.end())
+            return nullptr;
+
+        return &choiceItr->second;
+    }
+
+    GetUsThereArrivalChoice const* FindArrivalChoice(
+        uint32 gameTeleId,
+        uint16 choiceId) const
+    {
+        std::vector<GetUsThereArrivalChoice> const* choices =
+            FindArrivalChoices(gameTeleId);
+
+        if (!choices)
+            return nullptr;
+
+        auto const choiceItr = std::find_if(
+            choices->begin(),
+            choices->end(),
+            [choiceId](GetUsThereArrivalChoice const& choice)
+            {
+                return choice.choiceId == choiceId;
+            });
+
+        return choiceItr == choices->end() ? nullptr : &*choiceItr;
+    }
+
 private:
     std::unordered_map<uint32, GetUsThereDestination> _destinations;
+    std::unordered_map<uint32, std::vector<GetUsThereArrivalChoice>>
+        _arrivalChoices;
 };
 
 namespace
@@ -539,7 +908,9 @@ namespace
         RivalTerritoryBlocked,
         RivalCapitalBlocked,
         RivalStarterZoneBlocked,
-        LevelTooLow
+        LevelTooLow,
+        DruidOnly,
+        DeathKnightOnly
     };
 
     bool TryGetUsTherePlayerFaction(
@@ -578,6 +949,25 @@ namespace
         return sWorld && sWorld->IsPvPRealm();
     }
 
+    constexpr char GetUsThereCapitalCategory[] = "Capital";
+    constexpr char GetUsThereNeutralHubCategory[] = "Neutral Hub";
+    constexpr char GetUsThereSettlementCategory[] = "Settlement";
+    constexpr char GetUsThereDungeonCategory[] = "Dungeon";
+    constexpr char GetUsThereRaidCategory[] = "Raid";
+    constexpr char GetUsThereLevelingZoneCategory[] = "Leveling Zone";
+    constexpr char GetUsThereStarterAreaCategory[] = "Starter Area";
+
+    enum class GetUsThereSearchScope
+    {
+        All,
+        Cities,
+        Settlements,
+        DungeonsRaids,
+        LevelingZones
+    };
+    constexpr uint32 GetUsThereMoongladeGameTeleId = 636;
+    constexpr uint32 GetUsThereAcherusGameTeleId = 2006;
+
     GetUsTherePolicyDecision EvaluateGetUsThereDestinationPolicy(
         Player const* player,
         GetUsThereDestination const& destination)
@@ -590,9 +980,33 @@ namespace
         if (!TryGetUsTherePlayerFaction(player, playerFaction))
             return GetUsTherePolicyDecision::InvalidPlayerFaction;
 
+        // Curated class-specific destinations remain searchable to all
+        // players, but normal travel enforces the required class. Authorized
+        // TELEPORT_TEST remains the explicit administrative/test bypass.
+        if (destination.gameTeleId == GetUsThereMoongladeGameTeleId &&
+            !player->IsClass(CLASS_DRUID))
+        {
+            return GetUsTherePolicyDecision::DruidOnly;
+        }
+
+        if (destination.gameTeleId == GetUsThereAcherusGameTeleId &&
+            !player->IsClass(CLASS_DEATH_KNIGHT))
+        {
+            return GetUsTherePolicyDecision::DeathKnightOnly;
+        }
+
         bool const isRivalTerritory =
             destination.territoryFaction != GetUsThereFaction::Neutral &&
             destination.territoryFaction != playerFaction;
+
+        // Faction-owned Settlements are always protected from ordinary
+        // cross-faction teleport. Authorized TELEPORT_TEST remains the
+        // explicit administrative/test bypass.
+        if (isRivalTerritory &&
+            destination.category == GetUsThereSettlementCategory)
+        {
+            return GetUsTherePolicyDecision::RivalTerritoryBlocked;
+        }
 
         bool const usesPvPPolicy = GetUsThereUsesPvPPolicy();
 
@@ -735,12 +1149,37 @@ namespace
         return GetUsThereTeleportSafetyDecision::Allowed;
     }
 
+    bool GetUsThereDestinationMatchesSearchScope(
+        GetUsThereDestination const& destination,
+        GetUsThereSearchScope scope)
+    {
+        switch (scope)
+        {
+            case GetUsThereSearchScope::All:
+                return true;
+            case GetUsThereSearchScope::Cities:
+                return destination.category == GetUsThereCapitalCategory ||
+                    destination.category == GetUsThereNeutralHubCategory;
+            case GetUsThereSearchScope::Settlements:
+                return destination.category == GetUsThereSettlementCategory;
+            case GetUsThereSearchScope::DungeonsRaids:
+                return destination.category == GetUsThereDungeonCategory ||
+                    destination.category == GetUsThereRaidCategory;
+            case GetUsThereSearchScope::LevelingZones:
+                return destination.category == GetUsThereLevelingZoneCategory ||
+                    destination.category == GetUsThereStarterAreaCategory;
+        }
+
+        return false;
+    }
+
     std::vector<GetUsThereDestination>
     SearchGetUsThereDestinationsForPlayer(
         Player const* player,
         std::string query,
         std::size_t limit,
-        bool testOverride = false)
+        bool testOverride = false,
+        GetUsThereSearchScope scope = GetUsThereSearchScope::All)
     {
         std::vector<GetUsThereDestination> results;
 
@@ -759,16 +1198,52 @@ namespace
 
         for (GetUsThereDestination const& destination : matches)
         {
+            if (!GetUsThereDestinationMatchesSearchScope(
+                    destination,
+                    scope))
+            {
+                continue;
+            }
+
             if (testOverride)
             {
                 if (!destination.enabled)
                     continue;
             }
-            else if (EvaluateGetUsThereDestinationPolicy(
-                         player,
-                         destination) != GetUsTherePolicyDecision::Allowed)
+            else
             {
-                continue;
+                GetUsTherePolicyDecision const policyDecision =
+                    EvaluateGetUsThereDestinationPolicy(
+                        player,
+                        destination);
+
+                bool const visibleRivalSettlement =
+                    destination.category == GetUsThereSettlementCategory &&
+                    policyDecision ==
+                        GetUsTherePolicyDecision::RivalTerritoryBlocked;
+
+                bool const visibleClassRestrictedDestination =
+                    policyDecision == GetUsTherePolicyDecision::DruidOnly ||
+                    policyDecision ==
+                        GetUsTherePolicyDecision::DeathKnightOnly;
+
+                bool const visibleLevelRestrictedDestination =
+                    policyDecision ==
+                        GetUsTherePolicyDecision::LevelTooLow;
+
+                bool const visibleRivalCapital =
+                    destination.isCapital &&
+                    policyDecision ==
+                        GetUsTherePolicyDecision::RivalCapitalBlocked;
+
+                if (policyDecision != GetUsTherePolicyDecision::Allowed &&
+                    !visibleRivalSettlement &&
+                    !visibleClassRestrictedDestination &&
+                    !visibleLevelRestrictedDestination &&
+                    !visibleRivalCapital)
+                {
+                    continue;
+                }
             }
 
             results.push_back(destination);
@@ -821,12 +1296,21 @@ namespace
         "GetUsThere\tSEARCH\t";
     constexpr char GetUsThereSearchTestRequestPrefix[] =
         "GetUsThere\tSEARCH_TEST\t";
+    constexpr char GetUsThereScopedSearchRequestPrefix[] =
+        "GetUsThere\tSEARCH_SCOPE\t";
+    constexpr char GetUsThereScopedSearchTestRequestPrefix[] =
+        "GetUsThere\tSEARCH_SCOPE_TEST\t";
     constexpr char GetUsThereTeleportRequestPrefix[] =
         "GetUsThere\tTELEPORT\t";
     constexpr char GetUsThereTeleportTestRequestPrefix[] =
         "GetUsThere\tTELEPORT_TEST\t";
     constexpr char GetUsThereTeleportCoordTestRequestPrefix[] =
         "GetUsThere\tTELEPORT_COORD_TEST\t";
+    constexpr char GetUsThereTeleportChoiceRequestPrefix[] =
+        "GetUsThere\tTELEPORT_CHOICE\t";
+    constexpr char GetUsThereTeleportChoiceTestRequestPrefix[] =
+        "GetUsThere\tTELEPORT_CHOICE_TEST\t";
+    constexpr uint32 GetUsThereVaultOfArchavonGameTeleId = 1410;
     constexpr std::size_t GetUsThereMaxAddonPayloadLength = 255;
     constexpr std::size_t GetUsThereSearchResultLimit = 20;
     constexpr std::size_t GetUsThereMaxSearchQueryLength = 96;
@@ -846,10 +1330,18 @@ namespace
         float z = 0.0f;
     };
 
+    struct GetUsThereTeleportChoiceRequest
+    {
+        uint32 requestId = 0;
+        uint32 gameTeleId = 0;
+        uint16 choiceId = 0;
+    };
+
     struct GetUsThereSearchRequest
     {
         uint32 requestId = 0;
         std::string query;
+        GetUsThereSearchScope scope = GetUsThereSearchScope::All;
     };
 
     using GetUsThereSearchThrottleClock = std::chrono::steady_clock;
@@ -998,6 +1490,12 @@ namespace
                 GetUsThereConfig::TestOverrideEnable))
         {
             return false;
+        }
+
+        if (sGetUsThereConfig.GetConfigValue<bool>(
+                GetUsThereConfig::TestOverrideAllowAllAccounts))
+        {
+            return true;
         }
 
         std::string_view const configuredIds =
@@ -1151,6 +1649,115 @@ namespace
         return ParseGetUsThereTeleportRequestWithPrefix(
             message,
             GetUsThereTeleportTestRequestPrefix,
+            request);
+    }
+
+    bool ParseGetUsThereTeleportChoiceRequestWithPrefix(
+        std::string const& message,
+        std::string_view prefix,
+        GetUsThereTeleportChoiceRequest& request)
+    {
+        if (message.size() > GetUsThereMaxAddonPayloadLength)
+            return false;
+
+        if (message.size() <= prefix.size() ||
+            message.compare(
+                0,
+                prefix.size(),
+                prefix.data(),
+                prefix.size()) != 0)
+        {
+            return false;
+        }
+
+        std::string_view const fields(
+            message.data() + prefix.size(),
+            message.size() - prefix.size());
+
+        std::size_t const firstSeparator = fields.find('\t');
+
+        if (firstSeparator == std::string_view::npos ||
+            firstSeparator == 0 ||
+            firstSeparator + 1 >= fields.size())
+        {
+            return false;
+        }
+
+        std::size_t const secondSeparator =
+            fields.find('\t', firstSeparator + 1);
+
+        if (secondSeparator == std::string_view::npos ||
+            secondSeparator == firstSeparator + 1 ||
+            secondSeparator + 1 >= fields.size() ||
+            fields.find('\t', secondSeparator + 1) != std::string_view::npos)
+        {
+            return false;
+        }
+
+        std::string_view const requestIdText =
+            fields.substr(0, firstSeparator);
+        std::string_view const gameTeleIdText =
+            fields.substr(
+                firstSeparator + 1,
+                secondSeparator - firstSeparator - 1);
+        std::string_view const choiceIdText =
+            fields.substr(secondSeparator + 1);
+
+        uint32 requestId = 0;
+        uint32 gameTeleId = 0;
+        uint32 choiceId = 0;
+
+        auto const requestParse = std::from_chars(
+            requestIdText.data(),
+            requestIdText.data() + requestIdText.size(),
+            requestId);
+
+        auto const destinationParse = std::from_chars(
+            gameTeleIdText.data(),
+            gameTeleIdText.data() + gameTeleIdText.size(),
+            gameTeleId);
+
+        auto const choiceParse = std::from_chars(
+            choiceIdText.data(),
+            choiceIdText.data() + choiceIdText.size(),
+            choiceId);
+
+        if (requestParse.ec != std::errc{} ||
+            requestParse.ptr != requestIdText.data() + requestIdText.size() ||
+            destinationParse.ec != std::errc{} ||
+            destinationParse.ptr !=
+                gameTeleIdText.data() + gameTeleIdText.size() ||
+            choiceParse.ec != std::errc{} ||
+            choiceParse.ptr != choiceIdText.data() + choiceIdText.size() ||
+            choiceId == 0u ||
+            choiceId > 65535u)
+        {
+            return false;
+        }
+
+        request.requestId = requestId;
+        request.gameTeleId = gameTeleId;
+        request.choiceId = static_cast<uint16>(choiceId);
+        return true;
+    }
+
+    bool ParseGetUsThereTeleportChoiceRequest(
+        std::string const& message,
+        GetUsThereTeleportChoiceRequest& request)
+    {
+        return ParseGetUsThereTeleportChoiceRequestWithPrefix(
+            message,
+            GetUsThereTeleportChoiceRequestPrefix,
+            request);
+    }
+
+    bool ParseGetUsThereTeleportChoiceTestRequest(
+        std::string const& message,
+        GetUsThereTeleportChoiceRequest& request)
+    {
+        return ParseGetUsThereTeleportChoiceRequestWithPrefix(
+            message,
+            GetUsThereTeleportChoiceTestRequestPrefix,
             request);
     }
 
@@ -1337,6 +1944,125 @@ namespace
             request);
     }
 
+    bool TryParseGetUsThereSearchScope(
+        std::string_view scopeText,
+        GetUsThereSearchScope& scope)
+    {
+        if (scopeText == "CITIES")
+            scope = GetUsThereSearchScope::Cities;
+        else if (scopeText == "SETTLEMENTS")
+            scope = GetUsThereSearchScope::Settlements;
+        else if (scopeText == "DUNGEONS_RAIDS")
+            scope = GetUsThereSearchScope::DungeonsRaids;
+        else if (scopeText == "LEVELING_ZONES")
+            scope = GetUsThereSearchScope::LevelingZones;
+        else
+            return false;
+
+        return true;
+    }
+
+    bool ParseGetUsThereScopedSearchRequestWithPrefix(
+        std::string const& message,
+        std::string_view prefix,
+        GetUsThereSearchRequest& request)
+    {
+        if (message.size() > GetUsThereMaxAddonPayloadLength)
+            return false;
+
+        if (message.compare(
+                0,
+                prefix.size(),
+                prefix.data(),
+                prefix.size()) != 0)
+        {
+            return false;
+        }
+
+        std::string_view const remainder(
+            message.data() + prefix.size(),
+            message.size() - prefix.size());
+
+        std::size_t const firstSeparator = remainder.find('\t');
+
+        if (firstSeparator == std::string_view::npos)
+            return false;
+
+        std::size_t const secondSeparator =
+            remainder.find('\t', firstSeparator + 1);
+
+        if (secondSeparator == std::string_view::npos)
+            return false;
+
+        std::string_view const requestIdText =
+            remainder.substr(0, firstSeparator);
+        std::string_view const scopeText =
+            remainder.substr(
+                firstSeparator + 1,
+                secondSeparator - firstSeparator - 1);
+        std::string_view const queryText =
+            remainder.substr(secondSeparator + 1);
+
+        if (requestIdText.empty() ||
+            scopeText.empty() ||
+            queryText.size() > GetUsThereMaxSearchQueryLength)
+        {
+            return false;
+        }
+
+        for (char const c : queryText)
+        {
+            unsigned char const byte = static_cast<unsigned char>(c);
+
+            if (byte < 0x20u || byte == 0x7Fu)
+                return false;
+        }
+
+        uint32 requestId = 0;
+
+        auto const parseResult = std::from_chars(
+            requestIdText.data(),
+            requestIdText.data() + requestIdText.size(),
+            requestId);
+
+        if (parseResult.ec != std::errc{} ||
+            parseResult.ptr != requestIdText.data() + requestIdText.size())
+        {
+            return false;
+        }
+
+        GetUsThereSearchScope scope = GetUsThereSearchScope::All;
+
+        if (!TryParseGetUsThereSearchScope(scopeText, scope))
+            return false;
+
+        request.requestId = requestId;
+        request.query.assign(queryText.begin(), queryText.end());
+        request.scope = scope;
+
+        return true;
+    }
+
+    bool ParseGetUsThereScopedSearchRequest(
+        std::string const& message,
+        GetUsThereSearchRequest& request)
+    {
+        return ParseGetUsThereScopedSearchRequestWithPrefix(
+            message,
+            GetUsThereScopedSearchRequestPrefix,
+            request);
+    }
+
+    bool ParseGetUsThereScopedSearchTestRequest(
+        std::string const& message,
+        GetUsThereSearchRequest& request)
+    {
+        return ParseGetUsThereScopedSearchRequestWithPrefix(
+            message,
+            GetUsThereScopedSearchTestRequestPrefix,
+            request);
+    }
+
     std::string SanitizeGetUsThereWireField(std::string value)
     {
         for (char& c : value)
@@ -1375,6 +2101,221 @@ namespace
             std::to_string(tele->position_x) + "\t" +
             std::to_string(tele->position_y) + "\t" +
             std::to_string(tele->position_z);
+
+        if (payload.size() > GetUsThereMaxAddonPayloadLength)
+            return {};
+
+        return payload;
+    }
+
+    std::string BuildGetUsThereArrivalChoicePayload(
+        uint32 requestId,
+        GetUsThereArrivalChoice const& choice)
+    {
+        std::string arrivalMode;
+
+        switch (choice.arrivalMode)
+        {
+            case GetUsThereArrivalMode::Outside:
+                arrivalMode = "OUTSIDE";
+                break;
+
+            case GetUsThereArrivalMode::Inside:
+                arrivalMode = "INSIDE";
+                break;
+        }
+
+        if (arrivalMode.empty())
+            return {};
+
+        std::string payload =
+            "GetUsThere\tCHOICE\t" +
+            std::to_string(requestId) + "\t" +
+            std::to_string(choice.gameTeleId) + "\t" +
+            std::to_string(choice.choiceId) + "\t" +
+            arrivalMode + "\t" +
+            SanitizeGetUsThereWireField(choice.displayLabel) + "\t" +
+            (choice.isDefault ? "1" : "0");
+
+        if (payload.size() > GetUsThereMaxAddonPayloadLength)
+            return {};
+
+        return payload;
+    }
+
+    std::string BuildGetUsThereDestinationStatusPayload(
+        uint32 requestId,
+        GetUsThereDestination const& destination)
+    {
+        if (destination.gameTeleId == GetUsThereVaultOfArchavonGameTeleId)
+        {
+            Battlefield* const wintergrasp =
+                sBattlefieldMgr->GetBattlefieldByBattleId(
+                    BATTLEFIELD_BATTLEID_WG);
+
+            std::string owner = "UNKNOWN";
+
+            if (wintergrasp)
+            {
+                TeamId const defender = wintergrasp->GetDefenderTeam();
+
+                if (defender == TEAM_ALLIANCE)
+                    owner = "ALLIANCE";
+                else if (defender == TEAM_HORDE)
+                    owner = "HORDE";
+            }
+
+            std::string payload =
+                "GetUsThere\tSTATUS\t" +
+                std::to_string(requestId) + "\t" +
+                std::to_string(destination.gameTeleId) +
+                "\tWINTERGRASP_OWNER\t" +
+                owner;
+
+            if (payload.size() > GetUsThereMaxAddonPayloadLength)
+                return {};
+
+            return payload;
+        }
+
+        if (destination.category == GetUsThereSettlementCategory)
+        {
+            std::string faction = "NEUTRAL";
+
+            if (destination.territoryFaction == GetUsThereFaction::Alliance)
+                faction = "ALLIANCE";
+            else if (destination.territoryFaction == GetUsThereFaction::Horde)
+                faction = "HORDE";
+
+            std::string payload =
+                "GetUsThere\tSTATUS\t" +
+                std::to_string(requestId) + "\t" +
+                std::to_string(destination.gameTeleId) +
+                "\tSETTLEMENT_FACTION\t" +
+                faction;
+
+            if (payload.size() > GetUsThereMaxAddonPayloadLength)
+                return {};
+
+            return payload;
+        }
+
+        return {};
+    }
+
+    std::string BuildGetUsThereDestinationFactionStatusPayload(
+        uint32 requestId,
+        Player const* player,
+        GetUsThereDestination const& destination)
+    {
+        if (!player)
+            return {};
+
+        std::string faction;
+
+        if (destination.territoryFaction == GetUsThereFaction::Alliance)
+            faction = "ALLIANCE";
+        else if (destination.territoryFaction == GetUsThereFaction::Horde)
+            faction = "HORDE";
+        else
+            return {};
+
+        GetUsTherePolicyDecision const policyDecision =
+            EvaluateGetUsThereDestinationPolicy(
+                player,
+                destination);
+
+        bool const normalTravelBlocked =
+            policyDecision != GetUsTherePolicyDecision::Allowed;
+
+        std::string payload =
+            "GetUsThere\tSTATUS\t" +
+            std::to_string(requestId) + "\t" +
+            std::to_string(destination.gameTeleId) +
+            "\tDESTINATION_FACTION\t" +
+            faction +
+            (normalTravelBlocked ? "_BLOCKED" : "_ALLOWED");
+
+        if (payload.size() > GetUsThereMaxAddonPayloadLength)
+            return {};
+
+        return payload;
+    }
+
+    std::string BuildGetUsThereRivalCapitalStatusPayload(
+        uint32 requestId,
+        Player const* player,
+        GetUsThereDestination const& destination)
+    {
+        if (!player || !destination.isCapital)
+            return {};
+
+        GetUsTherePolicyDecision const policyDecision =
+            EvaluateGetUsThereDestinationPolicy(
+                player,
+                destination);
+
+        if (policyDecision != GetUsTherePolicyDecision::RivalCapitalBlocked)
+            return {};
+
+        std::string faction;
+
+        if (destination.territoryFaction == GetUsThereFaction::Alliance)
+            faction = "ALLIANCE";
+        else if (destination.territoryFaction == GetUsThereFaction::Horde)
+            faction = "HORDE";
+        else
+            return {};
+
+        std::string payload =
+            "GetUsThere\tSTATUS\t" +
+            std::to_string(requestId) + "\t" +
+            std::to_string(destination.gameTeleId) +
+            "\tRIVAL_CAPITAL_BLOCKED\t" +
+            faction;
+
+        if (payload.size() > GetUsThereMaxAddonPayloadLength)
+            return {};
+
+        return payload;
+    }
+
+    std::string BuildGetUsThereLevelRestrictionStatusPayload(
+        uint32 requestId,
+        Player const* player,
+        GetUsThereDestination const& destination)
+    {
+        if (!player)
+            return {};
+
+        GetUsTherePolicyDecision const policyDecision =
+            EvaluateGetUsThereDestinationPolicy(
+                player,
+                destination);
+
+        if (policyDecision != GetUsTherePolicyDecision::LevelTooLow)
+            return {};
+
+        uint32 const playerLevel = player->GetLevel();
+        uint32 const recommendedLevel =
+            static_cast<uint32>(destination.recommendedLevel);
+        uint32 const maxDeficit =
+            sGetUsThereConfig.GetConfigValue<uint32>(
+                GetUsThereConfig::LevelRestrictionMaxDeficit);
+
+        uint32 const minimumAllowedLevel =
+            recommendedLevel > maxDeficit
+                ? recommendedLevel - maxDeficit
+                : 0;
+
+        std::string payload =
+            "GetUsThere\tSTATUS\t" +
+            std::to_string(requestId) + "\t" +
+            std::to_string(destination.gameTeleId) +
+            "\tLEVEL_TOO_LOW\t" +
+            std::to_string(playerLevel) + "\t" +
+            std::to_string(recommendedLevel) + "\t" +
+            std::to_string(minimumAllowedLevel);
 
         if (payload.size() > GetUsThereMaxAddonPayloadLength)
             return {};
@@ -1461,6 +2402,10 @@ namespace
                 return "RIVAL_STARTER_ZONE_BLOCKED";
             case GetUsTherePolicyDecision::LevelTooLow:
                 return "LEVEL_TOO_LOW";
+            case GetUsTherePolicyDecision::DruidOnly:
+                return "DRUID_ONLY";
+            case GetUsTherePolicyDecision::DeathKnightOnly:
+                return "DEATH_KNIGHT_ONLY";
         }
 
         return "POLICY_BLOCKED";
@@ -1494,6 +2439,78 @@ namespace
         }
 
         return "SAFETY_BLOCKED";
+    }
+
+    struct GetUsThereResolvedArrival
+    {
+        uint32 mapId = 0;
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+        float orientation = 0.0f;
+    };
+
+    bool TryResolveGetUsThereArrival(
+        GetUsThereArrivalChoice const& choice,
+        GetUsThereResolvedArrival& arrival)
+    {
+        switch (choice.sourceType)
+        {
+            case GetUsThereArrivalSourceType::GameTele:
+            {
+                GameTele const* const tele =
+                    sObjectMgr->GetGameTele(choice.sourceId);
+
+                if (!tele)
+                    return false;
+
+                arrival.mapId = tele->mapId;
+                arrival.x = tele->position_x;
+                arrival.y = tele->position_y;
+                arrival.z = tele->position_z;
+                arrival.orientation = tele->orientation;
+                break;
+            }
+
+            case GetUsThereArrivalSourceType::LfgDungeon:
+            {
+                lfg::LFGDungeonData const* const dungeon =
+                    sLFGMgr->GetLFGDungeon(choice.sourceId);
+
+                if (!dungeon)
+                    return false;
+
+                arrival.mapId = dungeon->map;
+                arrival.x = dungeon->x;
+                arrival.y = dungeon->y;
+                arrival.z = dungeon->z;
+                arrival.orientation = dungeon->o;
+                break;
+            }
+
+            case GetUsThereArrivalSourceType::AreaTrigger:
+            {
+                AreaTriggerTeleport const* const trigger =
+                    sObjectMgr->GetAreaTriggerTeleport(choice.sourceId);
+
+                if (!trigger)
+                    return false;
+
+                arrival.mapId = trigger->target_mapId;
+                arrival.x = trigger->target_X;
+                arrival.y = trigger->target_Y;
+                arrival.z = trigger->target_Z;
+                arrival.orientation = trigger->target_Orientation;
+                break;
+            }
+        }
+
+        return MapMgr::IsValidMapCoord(
+            arrival.mapId,
+            arrival.x,
+            arrival.y,
+            arrival.z,
+            arrival.orientation);
     }
 
     std::string BuildGetUsThereTeleportErrorPayload(
@@ -1552,6 +2569,44 @@ namespace
             return;
         }
 
+        // Raw coordinates intentionally remain an administrator-authorized
+        // expert override.  This narrow sanity check is only intended to catch
+        // obvious accidental underground/void landings; it is not a general
+        // "playable area" restriction.
+        Map const* const targetMap = sMapMgr->CreateBaseMap(request.mapId);
+
+        if (!targetMap)
+        {
+            SendGetUsThereAddonPayload(
+                player,
+                BuildGetUsThereTeleportCoordErrorPayload(
+                    "UNSAFE_COORDINATES",
+                    request));
+            return;
+        }
+
+        constexpr float RawCoordHeightProbeOffset = 2.0f;
+        constexpr float RawCoordHeightSearchDistance = 50.0f;
+
+        float const floorZ =
+            targetMap->GetHeight(
+                player->GetPhaseMask(),
+                request.x,
+                request.y,
+                request.z + RawCoordHeightProbeOffset,
+                true,
+                RawCoordHeightSearchDistance);
+
+        if (floorZ <= INVALID_HEIGHT)
+        {
+            SendGetUsThereAddonPayload(
+                player,
+                BuildGetUsThereTeleportCoordErrorPayload(
+                    "UNSAFE_COORDINATES",
+                    request));
+            return;
+        }
+
         GetUsThereTeleportSafetyDecision const safetyDecision =
             EvaluateGetUsThereTeleportSafety(player, true);
 
@@ -1605,6 +2660,223 @@ namespace
         SendGetUsThereAddonPayload(player, payload);
     }
 
+    std::string BuildGetUsThereTeleportChoiceErrorPayload(
+        std::string_view errorCode,
+        GetUsThereTeleportChoiceRequest const& request)
+    {
+        std::string payload =
+            std::string("GetUsThere\tERROR\t") +
+            std::string(errorCode) + "\t" +
+            std::to_string(request.requestId) + "\t" +
+            std::to_string(request.gameTeleId) + "\t" +
+            std::to_string(request.choiceId);
+
+        if (payload.size() > GetUsThereMaxAddonPayloadLength)
+            return {};
+
+        return payload;
+    }
+
+    void DispatchGetUsThereTeleportChoice(
+        Player* player,
+        GetUsThereTeleportChoiceRequest const& request,
+        bool testOverride = false)
+    {
+        if (!player)
+            return;
+
+        GetUsThereDestination const* destination =
+            sGetUsThereCatalog.FindByGameTeleId(request.gameTeleId);
+
+        if (!destination)
+        {
+            SendGetUsThereAddonPayload(
+                player,
+                BuildGetUsThereTeleportChoiceErrorPayload(
+                    "DESTINATION_NOT_FOUND",
+                    request));
+            return;
+        }
+
+        // The parent destination policy is authoritative and MUST be evaluated
+        // before the requested arrival choice is looked up or resolved.
+        if (testOverride)
+        {
+            if (!destination->enabled)
+            {
+                SendGetUsThereAddonPayload(
+                    player,
+                    BuildGetUsThereTeleportChoiceErrorPayload(
+                        "DESTINATION_DISABLED",
+                        request));
+                return;
+            }
+        }
+        else
+        {
+            GetUsTherePolicyDecision const policyDecision =
+                EvaluateGetUsThereDestinationPolicy(
+                    player,
+                    *destination);
+
+            if (policyDecision != GetUsTherePolicyDecision::Allowed)
+            {
+                SendGetUsThereAddonPayload(
+                    player,
+                    BuildGetUsThereTeleportChoiceErrorPayload(
+                        GetUsTherePolicyErrorCode(policyDecision),
+                        request));
+                return;
+            }
+        }
+
+        // Vault of Archavon retains the same Wintergrasp ownership policy for
+        // every arrival choice. Authorized test override deliberately bypasses
+        // this restriction, matching legacy TELEPORT_TEST behavior.
+        if (!testOverride &&
+            destination->gameTeleId == GetUsThereVaultOfArchavonGameTeleId)
+        {
+            Battlefield* const wintergrasp =
+                sBattlefieldMgr->GetBattlefieldByBattleId(
+                    BATTLEFIELD_BATTLEID_WG);
+
+            if (!wintergrasp)
+            {
+                SendGetUsThereAddonPayload(
+                    player,
+                    BuildGetUsThereTeleportChoiceErrorPayload(
+                        "WINTERGRASP_OWNER_UNKNOWN",
+                        request));
+                return;
+            }
+
+            TeamId const defender = wintergrasp->GetDefenderTeam();
+
+            if (defender != TEAM_ALLIANCE && defender != TEAM_HORDE)
+            {
+                SendGetUsThereAddonPayload(
+                    player,
+                    BuildGetUsThereTeleportChoiceErrorPayload(
+                        "WINTERGRASP_OWNER_UNKNOWN",
+                        request));
+                return;
+            }
+
+            if (defender != player->GetTeamId())
+            {
+                SendGetUsThereAddonPayload(
+                    player,
+                    BuildGetUsThereTeleportChoiceErrorPayload(
+                        "WINTERGRASP_NOT_OWNED",
+                        request));
+                return;
+            }
+        }
+
+        GetUsThereArrivalChoice const* choice =
+            sGetUsThereCatalog.FindArrivalChoice(
+                request.gameTeleId,
+                request.choiceId);
+
+        if (!choice)
+        {
+            SendGetUsThereAddonPayload(
+                player,
+                BuildGetUsThereTeleportChoiceErrorPayload(
+                    "ARRIVAL_CHOICE_NOT_FOUND",
+                    request));
+            return;
+        }
+
+        if (!choice->enabled)
+        {
+            SendGetUsThereAddonPayload(
+                player,
+                BuildGetUsThereTeleportChoiceErrorPayload(
+                    "ARRIVAL_CHOICE_DISABLED",
+                    request));
+            return;
+        }
+
+        GetUsThereResolvedArrival arrival;
+
+        if (!TryResolveGetUsThereArrival(*choice, arrival))
+        {
+            SendGetUsThereAddonPayload(
+                player,
+                BuildGetUsThereTeleportChoiceErrorPayload(
+                    "ARRIVAL_CHOICE_INVALID",
+                    request));
+            return;
+        }
+
+        GetUsThereTeleportSafetyDecision const safetyDecision =
+            EvaluateGetUsThereTeleportSafety(player, testOverride);
+
+        if (safetyDecision != GetUsThereTeleportSafetyDecision::Allowed)
+        {
+            SendGetUsThereAddonPayload(
+                player,
+                BuildGetUsThereTeleportChoiceErrorPayload(
+                    GetUsThereSafetyErrorCode(safetyDecision),
+                    request));
+            return;
+        }
+
+        if (!testOverride &&
+            IsGetUsThereTeleportCooldownActive(player))
+        {
+            SendGetUsThereAddonPayload(
+                player,
+                BuildGetUsThereTeleportChoiceErrorPayload(
+                    "TELEPORT_COOLDOWN",
+                    request));
+            return;
+        }
+
+        GetUsThereTeleportSafetyDecision const finalSafetyDecision =
+            EvaluateGetUsThereTeleportSafety(player, testOverride);
+
+        if (finalSafetyDecision != GetUsThereTeleportSafetyDecision::Allowed)
+        {
+            SendGetUsThereAddonPayload(
+                player,
+                BuildGetUsThereTeleportChoiceErrorPayload(
+                    GetUsThereSafetyErrorCode(finalSafetyDecision),
+                    request));
+            return;
+        }
+
+        bool const accepted =
+            player->TeleportTo(
+                arrival.mapId,
+                arrival.x,
+                arrival.y,
+                arrival.z,
+                arrival.orientation);
+
+        if (!accepted)
+        {
+            SendGetUsThereAddonPayload(
+                player,
+                BuildGetUsThereTeleportChoiceErrorPayload(
+                    "TELEPORT_FAILED",
+                    request));
+            return;
+        }
+
+        if (!testOverride)
+            MarkGetUsThereTeleportSuccessful(player);
+
+        std::string const payload =
+            std::string("GetUsThere\tCHOICE_TELEPORTED\t") +
+            std::to_string(request.requestId) + "\t" +
+            std::to_string(request.gameTeleId) + "\t" +
+            std::to_string(request.choiceId) + "\tOK";
+
+        SendGetUsThereAddonPayload(player, payload);
+    }
+
     void DispatchGetUsThereTeleport(
         Player* player,
         GetUsThereTeleportRequest const& request,
@@ -1651,6 +2923,50 @@ namespace
                     player,
                     BuildGetUsThereTeleportErrorPayload(
                         GetUsTherePolicyErrorCode(policyDecision),
+                        request));
+                return;
+            }
+        }
+
+        // Vault remains searchable to both factions so the addon can display
+        // live Wintergrasp ownership. Normal teleport requires the player's
+        // faction to currently own Wintergrasp. Authorized TELEPORT_TEST
+        // deliberately bypasses this restriction.
+        if (!testOverride &&
+            destination->gameTeleId == GetUsThereVaultOfArchavonGameTeleId)
+        {
+            Battlefield* const wintergrasp =
+                sBattlefieldMgr->GetBattlefieldByBattleId(
+                    BATTLEFIELD_BATTLEID_WG);
+
+            if (!wintergrasp)
+            {
+                SendGetUsThereAddonPayload(
+                    player,
+                    BuildGetUsThereTeleportErrorPayload(
+                        "WINTERGRASP_OWNER_UNKNOWN",
+                        request));
+                return;
+            }
+
+            TeamId const defender = wintergrasp->GetDefenderTeam();
+
+            if (defender != TEAM_ALLIANCE && defender != TEAM_HORDE)
+            {
+                SendGetUsThereAddonPayload(
+                    player,
+                    BuildGetUsThereTeleportErrorPayload(
+                        "WINTERGRASP_OWNER_UNKNOWN",
+                        request));
+                return;
+            }
+
+            if (defender != player->GetTeamId())
+            {
+                SendGetUsThereAddonPayload(
+                    player,
+                    BuildGetUsThereTeleportErrorPayload(
+                        "WINTERGRASP_NOT_OWNED",
                         request));
                 return;
             }
@@ -1758,7 +3074,8 @@ namespace
                 player,
                 request.query,
                 sGetUsThereCatalog.Size(),
-                testOverride);
+                testOverride,
+                request.scope);
 
         std::size_t sentCount = 0;
 
@@ -1781,6 +3098,83 @@ namespace
             }
 
             SendGetUsThereAddonPayload(player, payload);
+
+            std::string const statusPayload =
+                BuildGetUsThereDestinationStatusPayload(
+                    request.requestId,
+                    destination);
+
+            if (!statusPayload.empty())
+                SendGetUsThereAddonPayload(player, statusPayload);
+
+            std::string const destinationFactionStatusPayload =
+                BuildGetUsThereDestinationFactionStatusPayload(
+                    request.requestId,
+                    player,
+                    destination);
+
+            if (!destinationFactionStatusPayload.empty())
+                SendGetUsThereAddonPayload(
+                    player,
+                    destinationFactionStatusPayload);
+
+            std::string const rivalCapitalStatusPayload =
+                BuildGetUsThereRivalCapitalStatusPayload(
+                    request.requestId,
+                    player,
+                    destination);
+
+            if (!rivalCapitalStatusPayload.empty())
+                SendGetUsThereAddonPayload(
+                    player,
+                    rivalCapitalStatusPayload);
+
+            std::string const levelStatusPayload =
+                BuildGetUsThereLevelRestrictionStatusPayload(
+                    request.requestId,
+                    player,
+                    destination);
+
+            if (!levelStatusPayload.empty())
+                SendGetUsThereAddonPayload(
+                    player,
+                    levelStatusPayload);
+
+            std::vector<GetUsThereArrivalChoice> const* choices =
+                sGetUsThereCatalog.FindArrivalChoices(
+                    destination.gameTeleId);
+
+            if (choices)
+            {
+                for (GetUsThereArrivalChoice const& choice : *choices)
+                {
+                    if (!choice.enabled)
+                        continue;
+
+                    std::string const choicePayload =
+                        BuildGetUsThereArrivalChoicePayload(
+                            request.requestId,
+                            choice);
+
+                    if (choicePayload.empty())
+                    {
+                        LOG_WARN(
+                            "server.loading",
+                            "GetUsThere: arrival choice for game_tele id {} "
+                            "choice {} could not fit within the addon payload "
+                            "limit; choice skipped.",
+                            destination.gameTeleId,
+                            choice.choiceId);
+
+                        continue;
+                    }
+
+                    SendGetUsThereAddonPayload(
+                        player,
+                        choicePayload);
+                }
+            }
+
             ++sentCount;
 
             if (sentCount >= GetUsThereSearchResultLimit)
@@ -1912,6 +3306,90 @@ namespace
 
             if (message.compare(
                     0,
+                    sizeof(GetUsThereTeleportChoiceTestRequestPrefix) - 1,
+                    GetUsThereTeleportChoiceTestRequestPrefix) == 0)
+            {
+                GetUsThereTeleportChoiceRequest choiceRequest;
+
+                if (!ParseGetUsThereTeleportChoiceTestRequest(
+                        message,
+                        choiceRequest))
+                {
+                    SendGetUsThereAddonPayload(
+                        player,
+                        "GetUsThere\tERROR\tTELEPORT_CHOICE_TEST_FORMAT");
+
+                    return false;
+                }
+
+                if (!TryConsumeGetUsThereTeleportThrottle(player))
+                {
+                    SendGetUsThereAddonPayload(
+                        player,
+                        BuildGetUsThereTeleportChoiceErrorPayload(
+                            "TELEPORT_THROTTLED",
+                            choiceRequest));
+
+                    return false;
+                }
+
+                if (!IsGetUsThereTestOverrideAuthorized(player))
+                {
+                    SendGetUsThereAddonPayload(
+                        player,
+                        BuildGetUsThereTeleportChoiceErrorPayload(
+                            "TEST_OVERRIDE_DENIED",
+                            choiceRequest));
+
+                    return false;
+                }
+
+                DispatchGetUsThereTeleportChoice(
+                    player,
+                    choiceRequest,
+                    true);
+
+                return false;
+            }
+
+            if (message.compare(
+                    0,
+                    sizeof(GetUsThereTeleportChoiceRequestPrefix) - 1,
+                    GetUsThereTeleportChoiceRequestPrefix) == 0)
+            {
+                GetUsThereTeleportChoiceRequest choiceRequest;
+
+                if (!ParseGetUsThereTeleportChoiceRequest(
+                        message,
+                        choiceRequest))
+                {
+                    SendGetUsThereAddonPayload(
+                        player,
+                        "GetUsThere\tERROR\tTELEPORT_CHOICE_FORMAT");
+
+                    return false;
+                }
+
+                if (!TryConsumeGetUsThereTeleportThrottle(player))
+                {
+                    SendGetUsThereAddonPayload(
+                        player,
+                        BuildGetUsThereTeleportChoiceErrorPayload(
+                            "TELEPORT_THROTTLED",
+                            choiceRequest));
+
+                    return false;
+                }
+
+                DispatchGetUsThereTeleportChoice(
+                    player,
+                    choiceRequest);
+
+                return false;
+            }
+
+            if (message.compare(
+                    0,
                     sizeof(GetUsThereTeleportTestRequestPrefix) - 1,
                     GetUsThereTeleportTestRequestPrefix) == 0)
             {
@@ -1990,6 +3468,90 @@ namespace
                 DispatchGetUsThereTeleport(
                     player,
                     teleportRequest);
+
+                return false;
+            }
+
+            if (message.compare(
+                    0,
+                    sizeof(GetUsThereScopedSearchTestRequestPrefix) - 1,
+                    GetUsThereScopedSearchTestRequestPrefix) == 0)
+            {
+                GetUsThereSearchRequest searchRequest;
+
+                if (!ParseGetUsThereScopedSearchTestRequest(
+                        message,
+                        searchRequest))
+                {
+                    SendGetUsThereAddonPayload(
+                        player,
+                        "GetUsThere\tERROR\tSEARCH_SCOPE_TEST_FORMAT");
+
+                    return false;
+                }
+
+                if (!TryConsumeGetUsThereSearchThrottle(player))
+                {
+                    SendGetUsThereAddonPayload(
+                        player,
+                        std::string(
+                            "GetUsThere\tERROR\tSEARCH_THROTTLED\t") +
+                            std::to_string(searchRequest.requestId));
+
+                    return false;
+                }
+
+                if (!IsGetUsThereTestOverrideAuthorized(player))
+                {
+                    SendGetUsThereAddonPayload(
+                        player,
+                        std::string(
+                            "GetUsThere\tERROR\tTEST_OVERRIDE_DENIED\t") +
+                            std::to_string(searchRequest.requestId));
+
+                    return false;
+                }
+
+                DispatchGetUsThereSearchResults(
+                    player,
+                    searchRequest,
+                    true);
+
+                return false;
+            }
+
+            if (message.compare(
+                    0,
+                    sizeof(GetUsThereScopedSearchRequestPrefix) - 1,
+                    GetUsThereScopedSearchRequestPrefix) == 0)
+            {
+                GetUsThereSearchRequest searchRequest;
+
+                if (!ParseGetUsThereScopedSearchRequest(
+                        message,
+                        searchRequest))
+                {
+                    SendGetUsThereAddonPayload(
+                        player,
+                        "GetUsThere\tERROR\tSEARCH_SCOPE_FORMAT");
+
+                    return false;
+                }
+
+                if (!TryConsumeGetUsThereSearchThrottle(player))
+                {
+                    SendGetUsThereAddonPayload(
+                        player,
+                        std::string(
+                            "GetUsThere\tERROR\tSEARCH_THROTTLED\t") +
+                            std::to_string(searchRequest.requestId));
+
+                    return false;
+                }
+
+                DispatchGetUsThereSearchResults(
+                    player,
+                    searchRequest);
 
                 return false;
             }

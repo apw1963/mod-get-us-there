@@ -104,8 +104,14 @@ GetUsThere.RaidTeleport.RequireLeader = 1
 #   not in battleground/arena
 #   SEARCH/TELEPORT admission throttles
 #
-# AllowedAccountIds is a comma-separated list of authenticated account IDs.
-# An empty or malformed list authorizes nobody.
+# Enable controls whether explicit test-override requests are available.
 #
-GetUsThere.TestOverride.Enable = 0
+# AllowAllAccounts = 1 authorizes every authenticated account.
+# Set AllowAllAccounts = 0 to restrict use to AllowedAccountIds.
+#
+# AllowedAccountIds is a comma-separated list of authenticated account IDs.
+# When AllowAllAccounts = 0, an empty or malformed list authorizes nobody.
+#
+GetUsThere.TestOverride.Enable = 1
+GetUsThere.TestOverride.AllowAllAccounts = 1
 GetUsThere.TestOverride.AllowedAccountIds = ""

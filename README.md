@@ -123,17 +123,28 @@ allowing Get Us There to maintain its own curated search and policy metadata.
 
 ## Development / Test Override
 
-Get Us There includes a server-gated Test Override intended for development and
-validation.
+Get Us There includes a server-gated Test Override intended for development,
+validation, and administrator-directed travel.
 
 It is disabled by default:
 
 - `GetUsThere.TestOverride.Enable = 0`
 - `GetUsThere.TestOverride.AllowedAccountIds = ""`
 
-Authorized testing can bypass selected normal travel restrictions and includes a
-raw-coordinate test path. Raw coordinates bypass curated safe destinations and
-should not be treated as normal player-facing travel.
+When authorized, the client option **Screw you! I'll go where I want, whenever
+I want.** is intentionally literal. It can bypass selected normal curated travel
+restrictions and exposes a raw-coordinate path for exact Map/X/Y/Z requests.
+
+Raw-coordinate travel bypasses the curated destination catalog. The server still
+enforces override authorization, protocol validation, basic map/coordinate
+validity, and general teleport-safety checks, but Get Us There does not attempt
+to prevent a server owner from deliberately traveling to unusual, inaccessible,
+unused, or normally non-playable locations.
+
+That freedom is intentional. Server administrators decide whether Test Override
+is enabled and who may use it. Once an authorized user deliberately chooses
+override or raw-coordinate travel, responsibility for the destination and its
+consequences belongs to that server owner/user.
 
 Normal `SEARCH` and `TELEPORT` requests are separate from Test Override behavior.
 

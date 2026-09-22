@@ -1179,3 +1179,467 @@ Release-critical hashes at package preflight:
   `3ca5ad904bac99a01722c731440fd0650de7e516f454795e2b5bf63f60852270`
 
 Git staging, commit, and push remain unperformed.
+
+## 2026-09-22 — Arrival-choice live acceptance and deferred group travel
+
+The server-authoritative arrival-choice protocol completed live validation.
+
+Accepted live behavior included:
+
+- server-issued arrival choices only; the client does not supply arbitrary
+  source IDs, maps, or coordinates;
+- Enter confirms/searches only and never teleports;
+- selecting an Arrival choice never teleports;
+- deliberate Send Us remains required;
+- default and non-default Outside choices were validated;
+- default and non-default Inside choices were validated;
+- multiple arrival choices on one destination were validated;
+- `GAME_TELE`, `LFG_DUNGEON`, and `AREA_TRIGGER` resolution paths were all
+  validated live;
+- destination policy is enforced before arrival-choice resolution;
+- unauthorized test override remains denied;
+- ordinary AzerothCore instance-entry restrictions remain authoritative.
+
+Blackwing Lair provided the final AREA_TRIGGER validation. The first Inside
+attempt was rejected by AzerothCore because the player was not in a raid.
+After joining a raid, the same server-issued Inside choice successfully entered
+Blackwing Lair.
+
+A post-validation cold checkpoint was created at:
+
+`/mnt/acore-backups/GetUsThere-G1615-ArrivalChoice-LiveAccepted-2026-09-22.tar.gz`
+
+Checkpoint SHA256:
+
+`37690f74ca54a0af39f1fa9b0d784529b075c07a64973a57756541ddb7dd3821`
+
+Archive integrity passed and the running worldserver was not stopped.
+
+### Deferred group-travel acceptance requirement
+
+Group / raid travel remains deliberately deferred. No group-jump behavior is
+part of the currently accepted single-character implementation.
+
+When group travel is implemented, eligibility must remain server-authoritative
+and must be evaluated per character. Membership in a valid group or an eligible
+leader must not imply that every member is eligible for the destination.
+
+A live observation established a concrete example:
+
+- Blackwing Lair map 469 has `min_level = 60` in
+  `dungeon_access_template`;
+- live `Instance.IgnoreLevel = 0`, so the level requirement is active;
+- a level-50 bot named Thump did not enter Blackwing Lair when summoned by
+  MultiBot;
+- Playerbots `SummonAction::Teleport()` uses ordinary
+  `Player::TeleportTo(..., 0)` rather than `TELE_TO_GM_MODE`, so normal
+  AzerothCore map-entry checks remain in force.
+
+Future group travel must therefore report an individual outcome for every
+requested member. A member that cannot travel must not be silently skipped.
+
+The server should return, when determinable, the character name plus a
+normalized rejection reason and useful requirement detail. Examples include:
+
+- `LEVEL_TOO_LOW`, including current and required minimum level;
+- `LEVEL_TOO_HIGH`;
+- `NOT_IN_RAID`;
+- `MISSING_ITEM`;
+- `MISSING_QUEST`;
+- `MISSING_ACHIEVEMENT`;
+- `INSTANCE_LOCKED`;
+- `MAP_DISABLED`;
+- other established server-side safety or eligibility failures;
+- `TELEPORT_FAILED` only as a fallback when no more specific reason is
+  available.
+
+Partial group success is acceptable, but the result must explicitly identify
+both successful and rejected members and provide a final summary.
+
+The addon remains presentation-only for these decisions:
+
+**THE ADDON ASKS. THE SERVER DECIDES.**
+
+No group / mass teleport implementation was added as part of this milestone.
+
+### Deferred tabbed-GUI search scoping
+
+The future tabbed addon redesign must scope search results to the active
+destination category.
+
+Category tabs are not presentation-only filters over an unrestricted search.
+The addon should identify the active category in its request, and the server
+should return only destinations that are valid members of that category.
+
+Intended behavior includes:
+
+- Cities search returns City destinations only;
+- Settlements search returns Settlement destinations only;
+- Dungeons & Raids search returns Dungeon / Raid destinations only;
+- Leveling Zones search returns Leveling Zone destinations only;
+- future category tabs follow the same rule;
+- a separate All Destinations search remains intentionally cross-category.
+
+A text match in another category must not appear merely because its name also
+matches the search string.
+
+This filtering remains server-authoritative. The addon must not request the
+entire destination catalog and locally hide nonmatching categories.
+
+Autocomplete / type-ahead results must follow the same category restriction.
+
+No tabbed-GUI or category-search protocol implementation was added as part of
+this documentation milestone.
+
+**THE ADDON ASKS. THE SERVER DECIDES.**
+
+
+## 2026-09-22 — Scoped destination search live acceptance
+
+The first live tabbed-search milestone is accepted.
+
+Implemented and live-tested search surfaces:
+
+- All Destinations — legacy unrestricted SEARCH / SEARCH_TEST behavior.
+- Cities — server-scoped to Capital + Neutral Hub.
+- Settlements — server-scoped to Settlement.
+- Dungeons & Raids — server-scoped to Dungeon + Raid.
+- Leveling Zones — server-scoped to Leveling Zone + Starter Area.
+
+Scoped searches use SEARCH_SCOPE / SEARCH_SCOPE_TEST. The addon sends the
+selected scope; the server applies category scoping before policy filtering and
+before the final 20-result wire cap. The addon does not retrieve the unrestricted
+catalog and hide mismatched categories locally.
+
+Live GUI validation confirmed that the expanded frame, four category buttons,
+second scoped search field, existing result selection, Arrival controls, World
+Coordinates, override checkbox, and raw-coordinate controls coexist without
+obvious clipping or overlap.
+
+Existing deliberate-action behavior remains preserved:
+
+- Enter performs search only.
+- Enter never teleports.
+- Send Us remains the explicit teleport action.
+- Arrival-choice behavior remains unchanged.
+
+Live category testing showed the scoped tabs returning only intended category
+matches.
+
+Level-policy preservation was explicitly live-tested with level-1 character
+Petebelf and GetUsThere.LevelRestriction.MaxDeficit = 9:
+
+- Camp Taurajo, recommended level 10, remained searchable at the exact allowed
+  boundary: level 1 + deficit 9 = 10. The result retained its normal green Horde
+  Settlement status.
+- Cenarion Hold, recommended level 55, was omitted from normal Settlement search
+  and returned No destinations found, as expected for LEVEL_TOO_LOW.
+
+This confirms that scoped search still uses the existing server-authoritative
+destination policy rather than bypassing or replacing it.
+
+Favorites remain deferred because no SavedVariables/persistence mechanism exists
+yet. Autocomplete/type-ahead also remains deferred until after this basic scoped
+search milestone. Group/mass teleport remains a separate deferred feature and
+was not implemented as part of this work.
+
+2026-09-22 — LEVEL-RESTRICTION STATUS AND DEFAULT EXPLICIT OVERRIDE LIVE ACCEPTED
+================================================================================
+
+The earlier scoped-search milestone behavior where LEVEL_TOO_LOW destinations were
+omitted from search has been superseded.
+
+Player-aware search now keeps LEVEL_TOO_LOW destinations visible and the server
+emits authoritative restriction status for them. The addon displays the player's
+current level, the minimum level needed under the configured MaxDeficit policy,
+and the destination's recommended level. This prevents a level-restricted result
+from appearing to be missing or broken while leaving policy authority on the
+server.
+
+The level-status packet is correlated to the active search request and destination.
+Existing STATUS behavior for other policy/status cases remains preserved.
+
+Live validation with level-1 Petebelf and Cenarion Hold confirmed:
+
+- Cenarion Hold remains visible in Settlement search despite the normal
+  LEVEL_TOO_LOW restriction.
+- The addon displays current level, needed level, and recommended level.
+- With the explicit override unchecked, Send Us is rejected by the server with
+  LEVEL_TOO_LOW and the character does not move.
+- The client does not independently disable Send Us based on the level status;
+  the addon asks and the server decides.
+
+The explicit "Screw you! I'll go wherever I want, whenever I want" path was also
+promoted to an available-by-default release feature while preserving selective
+server-owner control.
+
+Authorization configuration now uses:
+
+- GetUsThere.TestOverride.Enable
+- GetUsThere.TestOverride.AllowAllAccounts
+- GetUsThere.TestOverride.AllowedAccountIds
+
+Authorization order is:
+
+1. TestOverride.Enable must be enabled.
+2. If TestOverride.AllowAllAccounts is enabled, any authenticated account may use
+   the explicit override path.
+3. Otherwise, authorization falls back to the comma-separated
+   AllowedAccountIds list.
+4. An empty or malformed allowlist authorizes nobody when AllowAllAccounts is
+   disabled.
+
+Shipped defaults are:
+
+- GetUsThere.TestOverride.Enable = 1
+- GetUsThere.TestOverride.AllowAllAccounts = 1
+- GetUsThere.TestOverride.AllowedAccountIds = ""
+
+The existing allowlist mechanism remains available to server owners who want a
+restricted deployment.
+
+Live validation was performed in both modes:
+
+- With the earlier temporary DREW-only allowlist, non-allowlisted PETE received
+  TEST_OVERRIDE_DENIED.
+- After activation of the new release defaults, level-1 Petebelf on PETE could
+  deliberately use the checked override and successfully travel to Cenarion Hold.
+- Immediately afterward, with the override unchecked, the same character received
+  LEVEL_TOO_LOW and did not move.
+
+This confirms that making the explicit override available by default does not
+weaken or bypass the normal Send Us path. The normal path remains
+server-authoritative.
+
+The accepted running worldserver for this milestone is SHA256:
+
+ff57a9cb332390ef172389ff2d65a3b1fc10b1ddeac9cfab4a626167322659be
+
+The accepted addon Lua remains SHA256:
+
+6428dc0c02b0c6c316f0506dda948ad9f27027c28e168c081fd35df324033a92
+
+The accepted server source for this milestone is SHA256:
+
+ea6da38c76077560429e49575f81641bde1045f00f0eaca7028f387212730c75
+
+The accepted shipped configuration template is SHA256:
+
+6a77da2f68db7c449adab79a5da478c7420a824ba9b66fc8f37795d9e0983f9e
+
+No Favorites persistence, autocomplete/type-ahead, or group/mass teleport behavior
+was added as part of this milestone.
+
+## 2026-09-22 — Autocomplete, Destination-Faction Status, and Raw-Coordinate Safety Live Acceptance
+
+This milestone records the live-accepted behavior added after the scoped destination
+search milestone.
+
+The governing design principle remains:
+
+> THE ADDON ASKS. THE SERVER DECIDES.
+
+### Search autocomplete / type-ahead
+
+Both All Destinations and category-scoped search now support server-authoritative
+type-ahead results.
+
+Accepted behavior:
+
+- User-entered text schedules autocomplete rather than performing a local catalog
+  search.
+- Autocomplete uses a 0.40-second debounce and a 0.30-second minimum interval
+  between server search requests.
+- Search request correlation remains authoritative through
+  `pendingSearchRequestId`.
+- Stale or superseded requests cannot populate the current result set.
+- A completed autocomplete search with more than one result may open the result
+  dropdown automatically.
+- Pressing Enter performs or reuses the matching search request and may confirm
+  or select a result, but Enter never teleports.
+- Teleport remains an explicit Send Us action.
+- Closing the addon cancels queued autocomplete work and invalidates pending
+  search state.
+- Category autocomplete follows the same server-side scope restrictions as
+  explicit category search.
+
+Live validation included All Destinations type-ahead using the query `a`, which
+returned and displayed server results without teleporting the character.
+
+### Rival-capital search visibility and status
+
+Rival capitals remain visible in ordinary search results even when normal travel
+to them is blocked by server policy.
+
+The destination therefore remains discoverable while the server remains
+authoritative over whether travel is permitted.
+
+Accepted behavior:
+
+- Search visibility is separate from teleport permission.
+- A rival capital can be returned by normal search.
+- Normal Send Us remains denied when rival-capital travel is blocked.
+- An authorized checked test override may bypass that restriction according to
+  server policy.
+- The client displays the server error status for the blocked destination.
+- The associated danger warning is:
+
+  `Enable Screw You! and defy restrictions at your own peril, explorer.`
+
+No client-side rule independently decides whether a rival capital is allowed.
+
+### General destination-faction status
+
+Faction danger behavior was generalized beyond capitals.
+
+The server now evaluates destination faction and the result of the normal
+destination policy and sends destination status independently from the unchanged
+11-field RESULT payload.
+
+Accepted status behavior:
+
+- Opposing-faction destination where normal travel is allowed:
+
+  `Opposing faction territory. Proceed at your own peril, explorer.`
+
+- Opposing-faction destination where normal travel is blocked:
+
+  `Enable Screw You! and defy restrictions at your own peril, explorer.`
+
+- Same-faction or neutral destinations do not receive an opposing-faction
+  danger warning.
+
+Live validation covered all three important branches:
+
+- Horde character selecting Stormwind City:
+  opposing faction, normal policy blocked.
+- Horde character selecting Thelsamar:
+  opposing faction, normal policy allowed.
+- Horde character selecting Thrallmar:
+  same faction, no opposing-faction warning.
+
+This behavior belongs to the destination, not to the GUI category.
+
+Future category tabs such as Holidays, Darkmoon Faire/Fair, or other destination
+groups must inherit the same server-authoritative faction behavior automatically.
+A new tab must not introduce a separate client-side faction-policy system.
+
+### Raw-coordinate floor sanity
+
+Raw-coordinate override remains intentionally powerful. It is not a curated
+playable-area restriction and does not attempt to prevent every unusual or
+inaccessible destination chosen deliberately by an authorized user.
+
+A modest server-side accidental-landing check is now applied before raw
+teleport:
+
+- A base map is created for the requested map.
+- The server probes phase-aware terrain height at the requested X/Y.
+- The probe begins at requested Z plus 2 yards.
+- The downward floor-search distance is 50 yards.
+- If no valid floor is found within that search, the request is rejected with:
+
+  `UNSAFE_COORDINATES`
+
+This check is intended to catch obvious accidental void / fall-through
+coordinates while preserving the literal meaning of the authorized override.
+
+Live positive control:
+
+- Map 1
+- X 1629.85
+- Y -4373.64
+- Z 31.56
+
+The raw teleport succeeded at the known-good Orgrimmar location.
+
+Live negative control used the same known-good Map/X/Y with:
+
+- Z -500
+
+The server rejected the request with:
+
+`Raw coordinate error: UNSAFE_COORDINATES`
+
+The character did not move.
+
+This proves both that valid raw travel remains available and that the new
+floor-sanity rejection occurs before teleport when no valid nearby floor is
+found.
+
+### Raw-coordinate success and error UI state
+
+Successful raw teleport now clears stale curated-search state so the GUI does
+not continue implying that an earlier curated destination remains selected.
+
+On a successful matching raw teleport:
+
+- queued autocomplete is canceled;
+- pending curated search state is invalidated;
+- All Destinations search text is cleared;
+- category search text is cleared;
+- the Search Results dropdown is reset;
+- the prior curated destination, arrival, level, faction, and owner display
+  state is cleared;
+- the selected-status area becomes:
+
+  `Raw coordinate teleport complete.`
+
+The following raw-user state is intentionally preserved:
+
+- raw Map/X/Y/Z values;
+- checked Screw You! override state;
+- active category tab.
+
+A failed raw request does not run the successful-teleport cleanup.
+
+For a matching raw-coordinate server error, the GUI now replaces any stale
+success text with:
+
+`Raw coordinate error: <SERVER_ERROR_CODE>`
+
+The live `UNSAFE_COORDINATES` test confirmed that the raw fields and checked
+override remain available for correction after rejection.
+
+### Current accepted implementation hashes
+
+At this milestone:
+
+- `src/GetUsThere.cpp`
+  - SHA256 `0236137497910c735a8f17db02e12dcac224269036e093391c879a92dbddd2bd`
+- `client/GetUsThere/GetUsThere.lua`
+  - SHA256 `dc928276554fe8fe9f32afdcc9b072c09950eba6b188edc687c71f87bd1fd456`
+- `README.md`
+  - SHA256 `b403e17d9e13e7dfea311f5fa2a7ccb861bbd87d49adb5f20e4a2d09d992056c`
+- installed `worldserver`
+  - SHA256 `349dbabbd10c9268459a764ca74e9d7ad9636c86d4f9ac4d503754b5005c3566`
+
+The live worldserver remained running during the Lua-only raw error-display
+refinement.
+
+### Deferred raw-coordinate recognition idea
+
+A possible future refinement is an informational recognition line inside the Raw
+Coordinates section, for example:
+
+`Recognized destination: Orgrimmar`
+
+or, when only proximity can be established:
+
+`Near curated destination: Orgrimmar`
+
+This remains deferred.
+
+If implemented later:
+
+- recognition must be server-authoritative;
+- it must compare the entered raw coordinates against the authoritative
+  destination catalog;
+- it must be informational only;
+- it must not alter Map/X/Y/Z;
+- it must not select a curated destination;
+- it must not change the meaning of Send Us Exactly Here;
+- ordinary Search Results must not react dynamically to raw-coordinate entry.
+
+Curated search and expert raw-coordinate travel remain intentionally separate
+workflows.
