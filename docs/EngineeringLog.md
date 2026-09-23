@@ -1981,3 +1981,78 @@ The module-side and live-deployed Lua and TOC files matched at final validation.
 
 This milestone required README, TOC, live-addon metadata deployment, and
 documentation changes only. No worldserver build or restart was required.
+
+## 2026-09-23 — Native minimap button live acceptance
+
+A native WotLK 3.3.5a minimap launcher was added to the Get Us There client
+without adding LibDBIcon, LibDataBroker, or another external addon-library
+dependency.
+
+The button is parented to the Blizzard Minimap and uses the standard minimap
+tracking border and highlight presentation.
+
+### Saved client preferences
+
+The existing `GetUsThereDB.preferences` structure now stores:
+
+- `showMinimapButton`
+  - defaults to enabled;
+  - controls the Options > Display setting **Show Minimap Button**;
+  - survives `/reload`.
+- `minimapButtonAngle`
+  - stores the button's angular position around the minimap;
+  - is normalized to the 0-through-359-degree range;
+  - survives `/reload`.
+
+Dragging the button updates the saved angle while keeping the button constrained
+around the minimap rather than allowing free screen placement.
+
+### Shared window-toggle behavior
+
+The minimap button and `/gut` now use the same client-side main-window toggle
+function.
+
+This preserves the existing combat-hide rule:
+
+- the minimap button itself remains visible during combat;
+- when automatic Hide in Combat state is active, clicking the minimap button
+  does not reopen the main Get Us There window;
+- `/gut` likewise cannot defeat the active combat hide;
+- after combat ends, normal button and slash-command behavior resumes.
+
+The minimap button does not alter server travel authority, search behavior,
+teleport validation, raw-coordinate handling, or Test Override authorization.
+
+### Live acceptance
+
+Live client testing confirmed:
+
+- the minimap button is visible by default;
+- the tooltip displays the Get Us There name and click/drag guidance;
+- left-click opens and closes the main Get Us There window;
+- dragging moves the button around the minimap edge;
+- the dragged position survives `/reload`;
+- unchecking **Show Minimap Button** hides it immediately;
+- re-checking the option restores it at the saved position;
+- the hidden state survives `/reload`;
+- `/gut` continues to work while the minimap button is hidden;
+- the button remains visible during combat;
+- clicking it during active automatic combat hide does not reopen the main
+  window;
+- normal button behavior resumes after combat;
+- no new Get Us There Lua error was observed.
+
+### Current accepted client hash
+
+At this milestone:
+
+- `client/GetUsThere/GetUsThere.lua`
+  - SHA256 `2ebebcdea7bc8a93289589b8dac886fecd329c7de1a7761fa42e9f18cd99c441`
+
+The module-side and live-deployed Lua files matched at live acceptance.
+
+The TOC release version remains `0.2.0`; this is post-release development work
+and does not by itself promote a new addon release.
+
+This milestone required client Lua and documentation changes only. No
+worldserver build or restart was required.

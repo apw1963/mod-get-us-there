@@ -106,6 +106,9 @@ The client addon includes an **Options** window with three categories.
 
 - **Show Manual Map / X / Y / Z Controls** controls whether the raw-coordinate
   panel is shown when Test Override is enabled.
+- **Show Minimap Button** controls the draggable Get Us There launcher around
+  the minimap. Left-click opens or closes the main window, and dragging changes
+  its saved position.
 
 Client presentation preferences are saved in `GetUsThereDB` and survive
 `/reload`. Test Override authorization/state remains session-only and is never

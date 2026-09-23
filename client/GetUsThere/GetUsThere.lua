@@ -20,6 +20,12 @@ local textSizeStepPercent = 5
 local defaultShowRawCoordinates = true
 local ApplyRawVisibility = nil
 
+local defaultShowMinimapButton = true
+local defaultMinimapButtonAngle = 220
+local showMinimapButtonCheck = nil
+local minimapButton = nil
+local ApplyMinimapButtonState = nil
+
 local defaultRememberWindowPosition = true
 local rememberWindowPositionCheck = nil
 local RestoreSavedWindowPosition = nil
@@ -282,6 +288,24 @@ savedVariablesFrame:SetScript("OnEvent", function(self, event, loadedAddon)
             defaultShowRawCoordinates
     end
 
+    if type(GetUsThereDB.preferences.showMinimapButton) ~= "boolean" then
+        GetUsThereDB.preferences.showMinimapButton =
+            defaultShowMinimapButton
+    end
+
+    local savedMinimapAngle =
+        tonumber(GetUsThereDB.preferences.minimapButtonAngle)
+
+    if not savedMinimapAngle
+        or savedMinimapAngle ~= savedMinimapAngle
+        or savedMinimapAngle == math.huge
+        or savedMinimapAngle == -math.huge then
+        savedMinimapAngle = defaultMinimapButtonAngle
+    end
+
+    GetUsThereDB.preferences.minimapButtonAngle =
+        savedMinimapAngle % 360
+
     if type(GetUsThereDB.preferences.rememberWindowPosition) ~= "boolean" then
         GetUsThereDB.preferences.rememberWindowPosition =
             defaultRememberWindowPosition
@@ -322,6 +346,11 @@ savedVariablesFrame:SetScript("OnEvent", function(self, event, loadedAddon)
             GetUsThereDB.preferences.restoreAfterCombat)
     end
 
+    if showMinimapButtonCheck then
+        showMinimapButtonCheck:SetChecked(
+            GetUsThereDB.preferences.showMinimapButton)
+    end
+
     GetUsThereDB.preferences.textSizePercent =
         ApplyTextAppearance(
             GetUsThereDB.preferences.textSizePercent)
@@ -332,6 +361,10 @@ savedVariablesFrame:SetScript("OnEvent", function(self, event, loadedAddon)
 
     if ApplyRawVisibility then
         ApplyRawVisibility()
+    end
+
+    if ApplyMinimapButtonState then
+        ApplyMinimapButtonState()
     end
 
     -- Session-only travel authority and request state must never be persisted here.
@@ -1120,6 +1153,68 @@ showRawCoordinatesHelp:SetText(
     "This does not hide or disable Screw You!, which can also request " ..
     "override travel for searched destinations.")
 
+showMinimapButtonCheck =
+    CreateFrame(
+        "CheckButton",
+        "GetUsThereShowMinimapButtonCheck",
+        displayPanel,
+        "UICheckButtonTemplate")
+
+showMinimapButtonCheck:SetPoint(
+    "TOPLEFT",
+    showRawCoordinatesHelp,
+    "BOTTOMLEFT",
+    -24,
+    -14)
+
+showMinimapButtonCheck:SetChecked(defaultShowMinimapButton)
+
+local showMinimapButtonText =
+    showMinimapButtonCheck:CreateFontString(
+        nil,
+        "OVERLAY",
+        "GameFontHighlight")
+
+showMinimapButtonText:SetPoint(
+    "LEFT",
+    showMinimapButtonCheck,
+    "RIGHT",
+    4,
+    0)
+
+showMinimapButtonText:SetText("Show Minimap Button")
+
+local showMinimapButtonHelp =
+    displayPanel:CreateFontString(
+        nil,
+        "OVERLAY",
+        "GameFontHighlightSmall")
+
+showMinimapButtonHelp:SetPoint(
+    "TOPLEFT",
+    showMinimapButtonCheck,
+    "BOTTOMLEFT",
+    24,
+    -2)
+
+showMinimapButtonHelp:SetWidth(345)
+showMinimapButtonHelp:SetJustifyH("LEFT")
+showMinimapButtonHelp:SetText(
+    "Shows a draggable Get Us There button around the minimap. " ..
+    "Left-click opens or closes the main window.")
+
+showMinimapButtonCheck:SetScript("OnClick", function(self)
+    if type(GetUsThereDB) == "table"
+        and type(GetUsThereDB.preferences) == "table" then
+        GetUsThereDB.preferences.showMinimapButton =
+            self:GetChecked() and true or false
+    end
+
+    if ApplyMinimapButtonState then
+        ApplyMinimapButtonState()
+    end
+end)
+
 rememberWindowPositionCheck =
     CreateFrame(
         "CheckButton",
@@ -1371,6 +1466,191 @@ local function IsRestoreAfterCombatEnabled()
         and type(GetUsThereDB.preferences) == "table"
         and GetUsThereDB.preferences.restoreAfterCombat == true
 end
+
+local function ToggleMainWindow()
+    if frame:IsShown() then
+        frame:Hide()
+        return
+    end
+
+    if combatHideActive and IsHideInCombatEnabled() then
+        return
+    end
+
+    frame:Show()
+end
+
+local function GetSavedMinimapAngle()
+    if type(GetUsThereDB) == "table"
+        and type(GetUsThereDB.preferences) == "table" then
+        local angle =
+            tonumber(GetUsThereDB.preferences.minimapButtonAngle)
+
+        if angle
+            and angle == angle
+            and angle ~= math.huge
+            and angle ~= -math.huge then
+            return angle % 360
+        end
+    end
+
+    return defaultMinimapButtonAngle
+end
+
+local function UpdateMinimapButtonPosition()
+    if not minimapButton or not Minimap then
+        return
+    end
+
+    local angle = math.rad(GetSavedMinimapAngle())
+    local radius = 80
+
+    minimapButton:ClearAllPoints()
+    minimapButton:SetPoint(
+        "CENTER",
+        Minimap,
+        "CENTER",
+        math.cos(angle) * radius,
+        math.sin(angle) * radius)
+end
+
+local function SaveMinimapButtonAngleFromCursor(button)
+    if not button or not Minimap then
+        return
+    end
+
+    local minimapX, minimapY = Minimap:GetCenter()
+    local cursorX, cursorY = GetCursorPosition()
+    local scale = Minimap:GetEffectiveScale()
+
+    if not minimapX
+        or not minimapY
+        or not cursorX
+        or not cursorY
+        or not scale
+        or scale <= 0 then
+        return
+    end
+
+    cursorX = cursorX / scale
+    cursorY = cursorY / scale
+
+    local angle =
+        math.deg(
+            math.atan2(
+                cursorY - minimapY,
+                cursorX - minimapX)) % 360
+
+    if type(GetUsThereDB) == "table"
+        and type(GetUsThereDB.preferences) == "table" then
+        GetUsThereDB.preferences.minimapButtonAngle = angle
+    end
+
+    UpdateMinimapButtonPosition()
+end
+
+minimapButton =
+    CreateFrame(
+        "Button",
+        "GetUsThereMinimapButton",
+        Minimap)
+
+minimapButton:SetWidth(31)
+minimapButton:SetHeight(31)
+minimapButton:SetFrameStrata("MEDIUM")
+minimapButton:SetFrameLevel(8)
+minimapButton:SetClampedToScreen(true)
+minimapButton:RegisterForClicks("LeftButtonUp")
+minimapButton:RegisterForDrag("LeftButton")
+
+local minimapIcon =
+    minimapButton:CreateTexture(nil, "ARTWORK")
+
+minimapIcon:SetWidth(20)
+minimapIcon:SetHeight(20)
+minimapIcon:SetPoint(
+    "CENTER",
+    minimapButton,
+    "CENTER",
+    0,
+    0)
+minimapIcon:SetTexture(
+    "Interface\\Icons\\INV_Misc_Map_01")
+minimapIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+
+local minimapBorder =
+    minimapButton:CreateTexture(nil, "OVERLAY")
+
+minimapBorder:SetWidth(53)
+minimapBorder:SetHeight(53)
+minimapBorder:SetTexture(
+    "Interface\\Minimap\\MiniMap-TrackingBorder")
+minimapBorder:SetPoint("TOPLEFT")
+
+minimapButton:SetHighlightTexture(
+    "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+
+minimapButton:SetScript("OnClick", function()
+    ToggleMainWindow()
+end)
+
+minimapButton:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:ClearLines()
+    GameTooltip:AddLine("Get Us There", 1, 1, 1)
+    GameTooltip:AddLine(
+        "Left-click: open / close",
+        1,
+        1,
+        1)
+    GameTooltip:AddLine(
+        "Drag: move around minimap",
+        1,
+        1,
+        1)
+    GameTooltip:Show()
+end)
+
+minimapButton:SetScript("OnLeave", function()
+    GameTooltip:Hide()
+end)
+
+minimapButton:SetScript("OnDragStart", function(self)
+    self:SetScript(
+        "OnUpdate",
+        SaveMinimapButtonAngleFromCursor)
+end)
+
+minimapButton:SetScript("OnDragStop", function(self)
+    self:SetScript("OnUpdate", nil)
+    SaveMinimapButtonAngleFromCursor(self)
+end)
+
+ApplyMinimapButtonState = function()
+    local showButton = defaultShowMinimapButton
+
+    if type(GetUsThereDB) == "table"
+        and type(GetUsThereDB.preferences) == "table"
+        and type(
+            GetUsThereDB.preferences.showMinimapButton)
+            == "boolean" then
+        showButton =
+            GetUsThereDB.preferences.showMinimapButton
+    end
+
+    if showMinimapButtonCheck then
+        showMinimapButtonCheck:SetChecked(showButton)
+    end
+
+    if showButton then
+        UpdateMinimapButtonPosition()
+        minimapButton:Show()
+    else
+        minimapButton:Hide()
+    end
+end
+
+ApplyMinimapButtonState()
 
 ApplyRawVisibility = function()
     local showRaw = defaultShowRawCoordinates
@@ -2520,13 +2800,5 @@ end)
 
 SLASH_GETUSTHERE1 = "/gut"
 SlashCmdList["GETUSTHERE"] = function()
-    if frame:IsShown() then
-        frame:Hide()
-    else
-        if combatHideActive and IsHideInCombatEnabled() then
-            return
-        end
-
-        frame:Show()
-    end
+    ToggleMainWindow()
 end
