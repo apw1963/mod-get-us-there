@@ -1643,3 +1643,341 @@ If implemented later:
 
 Curated search and expert raw-coordinate travel remain intentionally separate
 workflows.
+
+## 2026-09-23 — Options UI and tab visual standard live acceptance
+
+The Get Us There client Options window was reorganized into three functional
+tabs:
+
+- Appearance
+  - UI Scale
+  - Window Opacity
+- Window
+  - Remember Window Position
+  - Lock Window Position
+- Display
+  - Show Manual Map / X / Y / Z Controls
+
+The Options window remains independently draggable and clamped to the screen.
+Its position is intentionally not persisted. The main Get Us There window
+retains its existing optional remembered-position behavior.
+
+The Screw You! override remains session-only and is not stored in
+SavedVariables. The manual-coordinate visibility preference remains a
+presentation-only setting and does not grant or persist travel authority.
+
+### Accepted tab visual standard
+
+Live client testing established the standard visual behavior for Get Us There
+tabs.
+
+The accepted convention is:
+
+- the active tab is fully lit, uses gold text, and is visually raised/popped up;
+- inactive tabs are dimmed, use grey text, and sit flat/lower;
+- all tabs remain enabled and clickable;
+- selection must not be represented by disabling the active tab.
+
+This convention is implemented for both:
+
+- Options tabs: Appearance, Window, Display;
+- destination tabs: Cities, Settlements, Dungeons & Raids, Leveling Zones.
+
+Any future Get Us There tab interface, including a future Favorites tab or
+additional Options categories, should follow this same active/inactive visual
+convention unless the design is explicitly revised later.
+
+The destination-tab visual change does not alter server-authoritative search
+scope behavior. Activating a destination tab still selects its existing search
+scope and resets the associated client search/result state exactly as before.
+
+### Live acceptance
+
+Live client validation confirmed:
+
+- Options panel switching works correctly;
+- destination category switching works correctly;
+- active tabs become lit/gold and raised;
+- inactive tabs become grey/dim and flat;
+- prior active tabs return to the inactive appearance when another tab is
+  selected;
+- all tabs remain clickable;
+- category search labels continue to follow the selected destination tab;
+- category search remains functional;
+- no Lua errors were observed.
+
+The user accepted the resulting appearance.
+
+### Current accepted client hashes
+
+At this milestone:
+
+- `client/GetUsThere/GetUsThere.lua`
+  - SHA256 `f5f1994c4c18fbdf7dd268ef7339812a21fef8d6b95c11f7b9786e1cde758d50`
+- `client/GetUsThere/GetUsThere.toc`
+  - SHA256 `cfdd7b8f532820dc3db40a4ad2952f2f17325da8853295a2ca86e2e8fad4d080`
+
+This milestone was client-Lua/documentation work only. No worldserver build or
+restart was required.
+
+## 2026-09-23 — Group-wide combat visibility live acceptance
+
+The Get Us There Options > Window panel now includes:
+
+- Hide in Combat
+- Restore After Combat
+
+The default for Hide in Combat is ON for new or missing preference state.
+Restore After Combat defaults ON.
+
+Existing saved user choices are preserved rather than forcibly replaced by a
+new default.
+
+### Group-wide combat definition
+
+Hide in Combat applies to the relevant group rather than only the local player.
+
+Combat state is evaluated for:
+
+- the player when solo;
+- the player and party members when in a party;
+- raid members when in a raid.
+
+The client uses WotLK-supported group APIs and events, including
+UnitAffectingCombat, GetNumPartyMembers, GetNumRaidMembers, UNIT_FLAGS,
+PARTY_MEMBERS_CHANGED, RAID_ROSTER_UPDATE, PLAYER_REGEN_DISABLED,
+PLAYER_REGEN_ENABLED, and PLAYER_ENTERING_WORLD.
+
+PLAYER_REGEN_ENABLED is not treated as an unconditional restore signal.
+Instead, every relevant combat or roster event causes the complete current
+group combat state to be reevaluated. Windows are restored only when no
+relevant party or raid member remains in combat.
+
+### Visibility snapshot and restoration
+
+Combat visibility state is session-only and is never written to SavedVariables.
+
+Immediately before an automatic combat hide, the addon records independently:
+
+- whether the main Get Us There window was visible;
+- whether the Options window was visible.
+
+Because hiding the main frame also hides Options, both visibility states are
+captured before the main frame is hidden.
+
+When combat ends:
+
+- a main window that was open before combat is restored;
+- an Options window that was open before combat is restored;
+- an Options window that was already closed stays closed;
+- windows are not opened merely because combat ended.
+
+While an automatic combat hide is active, /gut does not reopen the main window
+and defeat the Hide in Combat preference.
+
+### Live acceptance
+
+Live client testing confirmed:
+
+- solo/player combat hides and restores correctly;
+- party-member combat hides the interface even when the local player remains
+  personally out of combat;
+- the interface stays hidden while any party member remains in combat;
+- the interface restores only when the whole party leaves combat;
+- raid-member combat likewise hides the interface when the local player remains
+  personally out of combat;
+- the interface stays hidden while any relevant raid member remains in combat;
+- the interface restores only when the whole raid leaves combat;
+- when both Main and Options were open before combat, both restore;
+- when Options was closed before combat, it stays closed afterward;
+- no Lua errors were observed during the accepted tests.
+
+### Current accepted client hashes
+
+At this milestone:
+
+- `client/GetUsThere/GetUsThere.lua`
+  - SHA256 `f6452fead7badcc815263dfc7349c83eabc1c6262157dd805a0b878b67c4c984`
+- `client/GetUsThere/GetUsThere.toc`
+  - SHA256 `cfdd7b8f532820dc3db40a4ad2952f2f17325da8853295a2ca86e2e8fad4d080`
+
+This milestone required client Lua changes only. No worldserver build or restart
+was required.
+
+## 2026-09-23 — Appearance and text-size scaling live acceptance
+
+The Get Us There Options > Appearance panel is intentionally kept small and
+focused. Its accepted controls are:
+
+- UI Scale
+- Window Opacity
+- Text Size
+
+Text Size defaults to 100 percent, supports 80 through 140 percent, and moves
+in 5-percent increments. The selected value is stored in
+`GetUsThereDB.preferences.textSizePercent` and survives `/reload`.
+
+Text-size adjustment is independent of overall UI Scale.
+
+### Text scaling implementation
+
+Get Us There preserves each frame-owned font object's original font face,
+original base size, and original font flags. Text Size is applied from those
+stored baselines rather than repeatedly scaling an already-scaled value.
+
+This prevents cumulative growth or shrinkage as the slider is moved repeatedly.
+
+The ordinary Get Us There frame tree is styled recursively so the setting
+covers static labels, controls, edit boxes, and other frame-owned text.
+
+Search Results and Arrival popup rows require separate handling because
+Blizzard's UIDropDownMenu creates those rows dynamically outside the Get Us
+There frame tree.
+
+Get Us There therefore owns a private font object,
+`GetUsThereDropdownTextFont`, based on `GameFontHighlightSmallLeft`. The
+private font is resized from its original baseline and is assigned only to the
+Get Us There Search Results and Arrival dropdown entries through
+`info.fontObject`.
+
+The addon does not modify Blizzard global GameFont objects and does not walk or
+alter Blizzard's shared DropDownList frames.
+
+### Text Outline design decision
+
+A Text Outline option was implemented and evaluated during this work.
+
+Live inspection showed that the existing framed interface already provides
+clear separation and readability, while the outline produced little practical
+benefit. The option was therefore deliberately removed rather than retained as
+additional Appearance-panel complexity.
+
+The final interface contains no Text Outline checkbox or outline font resolver.
+
+For users who briefly saved the candidate setting,
+`GetUsThereDB.preferences.textOutline` is explicitly cleared during preference
+normalization so obsolete state is not retained.
+
+### Options window accommodation
+
+Larger text exposed a separate layout issue in the Window tab: its help text is
+anchored sequentially below the preceding item, so larger fonts correctly
+produce taller wrapped descriptions but the original Options frame did not
+provide enough vertical room.
+
+The accepted dimensions are now:
+
+- Options frame: 420 x 580
+- Appearance panel: 364 x 400
+- Window panel: 364 x 400
+- Display panel: 364 x 400
+
+The existing relative Window-tab anchors and 345-pixel help-text widths remain
+unchanged. The additional vertical room allows the normal anchor chain to
+expand naturally at the maximum 140-percent Text Size without overlapping or
+growing outside the Options frame.
+
+### Live acceptance
+
+Live client testing confirmed:
+
+- Text Size scales interface text up and down with the slider;
+- dynamically created destination dropdown text scales with the setting;
+- the selected Text Size survives `/reload`;
+- Text Outline is absent from the final Appearance panel;
+- at 140-percent Text Size the Window-tab content fits within the enlarged
+  Options frame;
+- Restore After Combat and its explanatory text remain inside the frame;
+- the Version line remains separated below the Window controls;
+- Appearance and Display continue to lay out normally in the taller frame.
+
+The final Appearance panel therefore contains only UI Scale, Window Opacity,
+and Text Size.
+
+### Current accepted client hashes
+
+At this milestone:
+
+- `client/GetUsThere/GetUsThere.lua`
+  - SHA256 `ae5989a0b4ccae5c4707845be49b06dd348aa59a59b07a1e2a2cdb3903862419`
+- `client/GetUsThere/GetUsThere.toc`
+  - SHA256 `cfdd7b8f532820dc3db40a4ad2952f2f17325da8853295a2ca86e2e8fad4d080`
+
+The module-side and live-deployed Lua files matched at live acceptance.
+
+This milestone required client Lua and documentation changes only. No
+worldserver build or restart was required.
+
+## 2026-09-23 — Client 0.2.0 promotion and README refresh
+
+Following live acceptance of the Options, group-combat visibility, and
+Appearance work, the client addon release version was promoted from `0.1.0`
+to `0.2.0`.
+
+The TOC now declares:
+
+- `## Version: 0.2.0`
+- `## SavedVariables: GetUsThereDB`
+
+The SavedVariables declaration had already been added for the accepted client
+preference system; the version promotion marks the accumulated client-facing
+feature expansion as a new minor release rather than a patch-only change.
+
+### README refresh
+
+The public README was updated to describe the accepted client Options
+interface.
+
+The documented categories are:
+
+- Appearance
+  - UI Scale
+  - Window Opacity
+  - Text Size
+- Window
+  - Remember Window Position
+  - Lock Window Position
+  - Hide in Combat
+  - Restore After Combat
+- Display
+  - Show Manual Map / X / Y / Z Controls
+
+The README also records that presentation preferences are stored in
+`GetUsThereDB` and survive `/reload`, while Test Override authorization/state
+remains session-only and is not persisted by the addon.
+
+The README client-compatibility section now identifies the current addon
+version as `0.2.0`.
+
+### Live metadata validation
+
+The updated TOC was deployed to the live addon tree and verified byte-identical
+to the module-side TOC.
+
+During client validation, `/reload` did not immediately refresh the version
+string returned by addon metadata in the already-running WoW session. The
+Options footer therefore initially continued to display `Version: 0.1.0`
+despite the live TOC already containing `0.2.0`.
+
+After fully exiting and restarting the WoW client, the Options footer correctly
+reported:
+
+`Version: 0.2.0`
+
+No Lua change was required for this behavior.
+
+### Current release hashes
+
+At this milestone:
+
+- `client/GetUsThere/GetUsThere.lua`
+  - SHA256 `ae5989a0b4ccae5c4707845be49b06dd348aa59a59b07a1e2a2cdb3903862419`
+- `client/GetUsThere/GetUsThere.toc`
+  - SHA256 `3b6a7d638d9b6e18621b99e3667aac98451afe1a86735e2a95e23311c939a67f`
+- `README.md`
+  - SHA256 `622fbfc5d5facebf60e56ff90fb502bad10f3df10b4a003e6f2647445395ad8c`
+
+The module-side and live-deployed Lua and TOC files matched at final validation.
+
+This milestone required README, TOC, live-addon metadata deployment, and
+documentation changes only. No worldserver build or restart was required.

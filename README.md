@@ -82,6 +82,35 @@ In the WoW client:
 
 Search and teleport are deliberately separate actions.
 
+## Client options
+
+The client addon includes an **Options** window with three categories.
+
+### Appearance
+
+- **UI Scale** adjusts the overall Get Us There interface scale.
+- **Window Opacity** adjusts the main window transparency.
+- **Text Size** adjusts Get Us There text independently of UI Scale.
+
+### Window
+
+- **Remember Window Position** restores the main window to its last dragged
+  position after `/reload`.
+- **Lock Window Position** prevents accidental dragging of the main window.
+- **Hide in Combat** automatically hides the Get Us There interface when the
+  player, party, or raid enters combat.
+- **Restore After Combat** restores whichever Get Us There windows were open
+  when the combat hide occurred.
+
+### Display
+
+- **Show Manual Map / X / Y / Z Controls** controls whether the raw-coordinate
+  panel is shown when Test Override is enabled.
+
+Client presentation preferences are saved in `GetUsThereDB` and survive
+`/reload`. Test Override authorization/state remains session-only and is never
+persisted by the addon.
+
 ## Configuration
 
 The distributed configuration file is:
@@ -152,6 +181,8 @@ Normal `SEARCH` and `TELEPORT` requests are separate from Test Override behavior
 
 The included client addon targets World of Warcraft 3.3.5a with interface number
 `30300`.
+
+Current client addon version: `0.2.0`.
 
 ## License
 
