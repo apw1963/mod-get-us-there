@@ -153,6 +153,45 @@ database tables:
 This keeps travel coordinates in AzerothCore's existing teleport system while
 allowing Get Us There to maintain its own curated search and policy metadata.
 
+### Race / starter-zone aliases
+
+Race-name discovery is supported through the existing server-authoritative alias
+catalog and the **Leveling Zones** search scope. Race aliases do not create new
+teleport destinations and do not bypass normal destination policy.
+
+Current starter-area discovery aliases are:
+
+- Human -> Northshire Valley
+- Dwarf -> Coldridge Valley
+- Gnome -> Coldridge Valley
+- Night Elf -> Shadowglen
+- Draenei -> Crash Site
+- Orc -> Valley of Trials
+- Troll -> Valley of Trials
+- Tauren -> Camp Narache
+- Undead -> Shadow Grave
+- Blood Elf -> The Sunspire
+
+Shared starter locations remain represented by one authoritative destination with
+multiple aliases. In particular, Dwarf/Gnome share Coldridge Valley and Orc/Troll
+share Valley of Trials.
+
+Opposing-faction destinations remain discoverable in search across current and
+future destination categories. Visibility does not grant travel permission: the
+server still evaluates normal faction, level, starter-zone, capital, and other
+travel policy when a teleport is requested.
+
+For a blocked opposing-faction destination, the client displays:
+
+`Opposing Faction Territory.`
+
+followed by:
+
+`Enable Screw You! and defy restrictions at your own peril, explorer.`
+
+The main Get Us There window is currently 560 x 640 to provide sufficient room
+for the two-line warning and the lower coordinate/override controls.
+
 ## Development / Test Override
 
 Get Us There includes a server-gated Test Override intended for development,

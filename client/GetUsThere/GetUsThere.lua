@@ -373,7 +373,7 @@ end)
 
 local frame = CreateFrame("Frame", "GetUsThereFrame", UIParent)
 frame:SetWidth(560)
-frame:SetHeight(600)
+frame:SetHeight(640)
 frame:SetPoint("CENTER")
 frame:SetBackdrop({
     bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -922,7 +922,7 @@ ownerStatus:SetText("")
 ownerStatus:Hide()
 
 local arrivalLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-arrivalLabel:SetPoint("TOPLEFT", 250, -326)
+arrivalLabel:SetPoint("TOPLEFT", 250, -350)
 arrivalLabel:SetText("Arrival")
 arrivalLabel:Hide()
 
@@ -931,17 +931,17 @@ local arrivalDropDown = CreateFrame(
     "GetUsThereArrivalDropDown",
     frame,
     "UIDropDownMenuTemplate")
-arrivalDropDown:SetPoint("TOPLEFT", 228, -336)
+arrivalDropDown:SetPoint("TOPLEFT", 228, -360)
 UIDropDownMenu_SetWidth(arrivalDropDown, 185)
 UIDropDownMenu_SetText(arrivalDropDown, "No arrival choices")
 arrivalDropDown:Hide()
 
 local worldTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-worldTitle:SetPoint("TOPLEFT", 24, -326)
+worldTitle:SetPoint("TOPLEFT", 24, -350)
 worldTitle:SetText("World Coordinates")
 
 local worldCoords = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-worldCoords:SetPoint("TOPLEFT", 24, -348)
+worldCoords:SetPoint("TOPLEFT", 24, -372)
 worldCoords:SetJustifyH("LEFT")
 worldCoords:SetText("Map: --\nX: --\nY: --\nZ: --")
 
@@ -954,7 +954,7 @@ local override = CreateFrame(
     "UIPanelButtonTemplate")
 override:SetWidth(90)
 override:SetHeight(24)
-override:SetPoint("TOPLEFT", 20, -416)
+override:SetPoint("TOPLEFT", 20, -440)
 
 local overrideHelp = frame:CreateFontString(
     nil,
@@ -990,7 +990,7 @@ UpdateOverrideButtonAppearance()
 local raw = CreateFrame("Frame", nil, frame)
 raw:SetWidth(370)
 raw:SetHeight(140)
-raw:SetPoint("TOPLEFT", 24, -461)
+raw:SetPoint("TOPLEFT", 24, -485)
 raw:Hide()
 
 local warning = raw:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -1780,6 +1780,7 @@ local function ShowSelectedDestination(destination)
 
         if destination.destinationFactionBlocked then
             ownerStatus:SetText(
+                "Opposing Faction Territory.\n" ..
                 "Enable Screw You! and defy restrictions at your own peril, explorer.")
         else
             ownerStatus:SetText(

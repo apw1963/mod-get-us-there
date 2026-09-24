@@ -2056,3 +2056,130 @@ and does not by itself promote a new addon release.
 
 This milestone required client Lua and documentation changes only. No
 worldserver build or restart was required.
+
+## 2026-09-24 — Race / starter-zone aliases and global opposing-faction discovery
+
+The Race / Starter-Zone Aliases roadmap item was implemented and live accepted.
+
+### Data-driven race aliases
+
+The feature remains fully server-authoritative and uses the existing
+`mod_get_us_there_alias` search model rather than adding client-side race routing
+or duplicate destination rows.
+
+World update:
+
+`data/sql/db-world/updates/get_us_there_2026_09_24_13.sql`
+
+SHA256:
+
+`5b892a041f12c92827a22bd4d5ecf1de3bf06c96120c4dd8e13c740cb1392c38`
+
+The migration adds ten race-name aliases across eight existing Starter Area
+destinations:
+
+- Human -> Northshire Valley (`game_tele_id` 686)
+- Dwarf -> Coldridge Valley (`game_tele_id` 220)
+- Gnome -> Coldridge Valley (`game_tele_id` 220)
+- Night Elf -> Shadowglen (`game_tele_id` 837)
+- Draenei -> Crash Site (`game_tele_id` 227)
+- Orc -> Valley of Trials (`game_tele_id` 1278)
+- Troll -> Valley of Trials (`game_tele_id` 1278)
+- Tauren -> Camp Narache (`game_tele_id` 188)
+- Undead -> Shadow Grave (`game_tele_id` 838)
+- Blood Elf -> The Sunspire (`game_tele_id` 1168)
+
+The shared Dwarf/Gnome and Orc/Troll starter locations remain single
+authoritative destinations with multiple aliases.
+
+The AzerothCore module updater applied the migration as a `MODULE` update.
+Following activation, Get Us There loaded:
+
+- 230 destinations
+- 25 aliases
+- 0 rejected destinations
+- 0 rejected aliases
+
+### Global opposing-faction search visibility
+
+Live validation exposed a pre-existing search-visibility inconsistency:
+opposing-faction Settlements and Capitals had explicit visibility exceptions,
+while blocked opposing-faction Starter Areas were filtered from normal search
+results.
+
+The search filter was generalized so destinations blocked by these faction-policy
+decisions remain discoverable:
+
+- `RivalTerritoryBlocked`
+- `RivalCapitalBlocked`
+- `RivalStarterZoneBlocked`
+
+This is a search/display rule only.
+
+Teleport authorization remains server-authoritative. Normal Send Us and arrival
+teleport paths continue to evaluate `EvaluateGetUsThereDestinationPolicy()` and
+reject destinations that are not allowed unless the established authorized Test
+Override path is used.
+
+The design rule going forward is:
+
+Opposing-faction destinations remain visible in all current and future destination
+categories. Visibility never grants teleport permission.
+
+### Opposing-faction warning presentation
+
+Blocked opposing-faction destinations now use a two-line warning:
+
+`Opposing Faction Territory.`
+
+`Enable Screw You! and defy restrictions at your own peril, explorer.`
+
+The main client frame was increased from 560 x 600 to 560 x 640, and the lower
+Arrival / World Coordinates / Test Override / raw-coordinate section was moved
+down 24 pixels to provide sufficient space for the warning.
+
+### Build and deployment
+
+The Get Us There C++ source rebuilt successfully as part of the worldserver
+target.
+
+Live accepted hashes:
+
+- `src/GetUsThere.cpp`
+  - SHA256 `b378c9a382586dac96cb9814c7446b7a5b9202855c0a5f54702899b9b28688df`
+- `client/GetUsThere/GetUsThere.lua`
+  - SHA256 `9d40263ee6dcf6efbb662c33536dad54d4c2e281b72676644bbdfe52424ed1cf`
+- `data/sql/db-world/updates/get_us_there_2026_09_24_13.sql`
+  - SHA256 `5b892a041f12c92827a22bd4d5ecf1de3bf06c96120c4dd8e13c740cb1392c38`
+- installed/running `worldserver`
+  - SHA256 `5e89903f11ede7390a957c1e25b07a55542f7f6ac8a24a2c6b34a793312bd625`
+
+The live addon Lua matched the module-side Lua at acceptance.
+
+### Live acceptance
+
+Testing on an Alliance character confirmed all ten aliases resolve through the
+existing Leveling Zones / Starter Area search path:
+
+- Human -> Northshire Valley
+- Dwarf -> Coldridge Valley
+- Gnome -> Coldridge Valley
+- Night Elf -> Shadowglen
+- Draenei -> Crash Site
+- Orc -> Valley of Trials
+- Troll -> Valley of Trials
+- Tauren -> Camp Narache
+- Undead -> Shadow Grave
+- Blood Elf -> The Sunspire
+
+All five opposing-faction starter destinations remained visible and displayed the
+accepted warning. Same-faction starter destinations did not display the opposing
+faction warning.
+
+No teleport was performed as part of the alias-discovery acceptance test.
+
+The enlarged 560 x 640 main-frame layout and warning spacing were visually
+accepted in the live WoW client.
+
+The addon version remains `0.2.0`. This is post-release development and does not
+by itself create a new release or tag.

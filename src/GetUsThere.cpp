@@ -1217,10 +1217,13 @@ namespace
                         player,
                         destination);
 
-                bool const visibleRivalSettlement =
-                    destination.category == GetUsThereSettlementCategory &&
+                bool const visibleRivalFactionDestination =
                     policyDecision ==
-                        GetUsTherePolicyDecision::RivalTerritoryBlocked;
+                        GetUsTherePolicyDecision::RivalTerritoryBlocked ||
+                    policyDecision ==
+                        GetUsTherePolicyDecision::RivalCapitalBlocked ||
+                    policyDecision ==
+                        GetUsTherePolicyDecision::RivalStarterZoneBlocked;
 
                 bool const visibleClassRestrictedDestination =
                     policyDecision == GetUsTherePolicyDecision::DruidOnly ||
@@ -1231,16 +1234,10 @@ namespace
                     policyDecision ==
                         GetUsTherePolicyDecision::LevelTooLow;
 
-                bool const visibleRivalCapital =
-                    destination.isCapital &&
-                    policyDecision ==
-                        GetUsTherePolicyDecision::RivalCapitalBlocked;
-
                 if (policyDecision != GetUsTherePolicyDecision::Allowed &&
-                    !visibleRivalSettlement &&
+                    !visibleRivalFactionDestination &&
                     !visibleClassRestrictedDestination &&
-                    !visibleLevelRestrictedDestination &&
-                    !visibleRivalCapital)
+                    !visibleLevelRestrictedDestination)
                 {
                     continue;
                 }
