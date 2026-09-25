@@ -2183,3 +2183,241 @@ accepted in the live WoW client.
 
 The addon version remains `0.2.0`. This is post-release development and does not
 by itself create a new release or tag.
+
+## 2026-09-25 — Points of Interest category and initial live catalog
+
+The initial Points of Interest feature was implemented, deployed, and live
+accepted.
+
+### Future-proof category layout
+
+The main client frame was increased from 560 x 640 to 560 x 680.
+
+Category-tab positioning was generalized so every tab has an explicit X/Y
+position. This establishes a permanent two-row-capable category area rather
+than repeatedly resizing the window as new destination families are added.
+
+Current visible category layout:
+
+- Row 1:
+  - Cities
+  - Settlements
+  - Dungeons & Raids
+  - Leveling Zones
+- Row 2:
+  - Points of Interest
+
+Reserved row-two positions exist for foreseeable future categories:
+
+- World Bosses
+- Events & Festivals
+- Favorites
+
+Unimplemented categories are not displayed.
+
+The lower Search Results / selected destination / Arrival / World Coordinates /
+Test Override / raw-coordinate controls were moved down 32 pixels. The frame
+height increased by 40 pixels, preserving and slightly increasing lower-window
+clearance.
+
+The 560 x 680 layout was visually accepted in the live WoW client before POI
+functionality was added.
+
+### Server-authoritative POI search scope
+
+The server now defines:
+
+- destination category: `Point of Interest`
+- search scope: `GetUsThereSearchScope::PointsOfInterest`
+- scoped-search wire token: `POINTS_OF_INTEREST`
+
+The client Points of Interest tab sends that scoped-search token. Destination
+membership remains determined by the server-side catalog.
+
+No destination-table schema change was required because `category` is already a
+general `varchar(32)` metadata field.
+
+### Initial POI catalog
+
+World update:
+
+`data/sql/db-world/updates/get_us_there_2026_09_24_14.sql`
+
+SHA256:
+
+`278724bd6c4a369afac432fe7871d166af94d5457276d7d330dba656a199b7bc`
+
+The initial accepted catalog contains six destinations:
+
+- Dark Portal - Azeroth
+  - `game_tele_id` 2048
+  - recommended level 55
+  - synthetic Get Us There safe arrival
+- Gurubashi Arena
+  - `game_tele_id` 458
+  - recommended level 30
+- Dark Portal - Outland
+  - `game_tele_id` 1037
+  - recommended level 58
+- Throne of the Elements
+  - `game_tele_id` 1210
+  - recommended level 64
+- Sholazar Waygate
+  - `game_tele_id` 1572
+  - recommended level 77
+- Temple of Storms
+  - `game_tele_id` 1629
+  - recommended level 77
+
+POI sort orders use the 5000-series.
+
+### Dark Portal - Azeroth safe arrival
+
+Stock `game_tele` 1036 was not selected as the curated Azeroth-side Dark Portal
+arrival.
+
+Research found faction-sensitive portal NPCs roughly 24-25 yards from stock
+1036. The stock Dark Portal area-trigger landing instead had:
+
+- 0 creatures within 25 yards
+- 0 creatures within 50 yards
+- nearest creature approximately 63 yards away
+
+A synthetic Get Us There `game_tele` row was therefore created:
+
+- ID: 2048
+- name: `GetUsThereDarkPortalAzerothSafe`
+- map: 0
+- X: -11877.700
+- Y: -3204.490
+- Z: -18.490
+- orientation: 0.230000
+
+This follows the module's existing pattern of using synthetic `game_tele` rows
+for curated safe/parent arrivals while leaving stock AzerothCore rows unchanged.
+
+### Aliases
+
+Migration 14 adds fourteen POI aliases.
+
+Notable alternate discovery terms include:
+
+- Dark Portal
+- The Dark Portal
+- Dark Portal Azeroth
+- Blasted Lands Portal
+- Dark Portal Outland
+- Stair of Destiny
+- The Stair of Destiny
+- Gurubashi
+- Throne of Elements
+- Waygate
+- Sholazar Basin Waygate
+- Temple Storms
+- Storm Peaks Temple
+
+The two Dark Portal destinations deliberately share the broad `Dark Portal`
+alias, allowing the scoped search to return both Azeroth and Outland choices.
+
+### Researched candidates held out
+
+Ravenholdt Manor and Alcaz Island were researched but were not included in the
+initial POI migration.
+
+Ravenholdt stock `game_tele` 739 lands directly among Ravenholdt NPCs. Faction
+349 is reputation-capable, so reaction can depend on the player's Ravenholdt
+reputation / At-War state. A safer outside/approach arrival remains preferable.
+
+Alcaz Island stock `game_tele` 13 has hostile level 59-63 creatures beginning
+roughly 29 yards from the arrival point. Nearby stock `game_tele` alternatives
+are mainland locations rather than useful Alcaz arrivals.
+
+Both remain future research candidates rather than rejected destinations.
+
+### Migration validation and activation
+
+Before activation, migration 14 was executed inside a database transaction and
+rolled back.
+
+The dry-run confirmed:
+
+- 1 synthetic `game_tele` row
+- 6 POI destination rows
+- 14 alias rows
+- no SQL errors
+- after rollback:
+  - synthetic ID 2048 count = 0
+  - POI destination count = 0
+  - POI alias count = 0
+
+The C++ POI scope then rebuilt successfully as part of the worldserver target.
+
+Candidate/live hashes at activation:
+
+- `src/GetUsThere.cpp`
+  - SHA256 `5768e0f736530abf93fb4057f789ff86dacaf700705112f77c30d2430db46c8b`
+- `client/GetUsThere/GetUsThere.lua`
+  - SHA256 `0301e7c38504d6118290d7cde69d2036a1543ab28203b3b8e9656ba80daecc09`
+- migration 14
+  - SHA256 `278724bd6c4a369afac432fe7871d166af94d5457276d7d330dba656a199b7bc`
+- installed/running `worldserver`
+  - SHA256 `896f054b44b9a37efec012f1798b419ecfcc6f37c6babdd17a03e815e80271db`
+
+The normal AzerothCore world updater applied:
+
+`get_us_there_2026_09_24_14.sql`
+
+After activation Get Us There reported:
+
+- 236 destinations loaded
+- 0 destinations rejected
+- 39 aliases loaded
+- 0 aliases rejected
+
+The module-side and live-deployed Lua files matched at acceptance.
+
+### Live client acceptance
+
+The Points of Interest tab was live-tested after `/reload`.
+
+Scoped search successfully returned all six POIs. Searching `Dark Portal`
+returned both:
+
+- Dark Portal - Azeroth
+- Dark Portal - Outland
+
+Initial live teleport testing confirmed good arrival positions for:
+
+- Dark Portal - Azeroth
+- Dark Portal - Outland
+- Gurubashi Arena
+- Throne of the Elements
+- Sholazar Waygate
+- Temple of Storms
+
+On the first test character, all six arrivals were reported safe with no
+immediate attack.
+
+A small positional jump occurred consistently after teleport at the tested POI
+destinations. Because it repeated across unrelated stock and synthetic arrivals,
+it was treated as normal post-teleport position settling rather than a
+destination-specific defect.
+
+Horde validation was then performed with Peteorc.
+
+Peteorc confirmed acceptable landing positions for:
+
+- Dark Portal - Azeroth
+- Dark Portal - Outland
+- Gurubashi Arena
+- Throne of the Elements
+- Sholazar Waygate
+- Temple of Storms
+
+Throne of the Elements was specifically checked because of an initial concern
+about Horde safety. The destination is neutral in Get Us There metadata, was
+searchable to Peteorc at level 80, teleported successfully, and nearby NPCs did
+not attack him.
+
+The addon version remains `0.2.0`. This is post-release development and does not
+by itself create a new release or tag.

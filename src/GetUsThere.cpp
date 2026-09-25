@@ -956,6 +956,7 @@ namespace
     constexpr char GetUsThereRaidCategory[] = "Raid";
     constexpr char GetUsThereLevelingZoneCategory[] = "Leveling Zone";
     constexpr char GetUsThereStarterAreaCategory[] = "Starter Area";
+    constexpr char GetUsTherePointOfInterestCategory[] = "Point of Interest";
 
     enum class GetUsThereSearchScope
     {
@@ -963,7 +964,8 @@ namespace
         Cities,
         Settlements,
         DungeonsRaids,
-        LevelingZones
+        LevelingZones,
+        PointsOfInterest
     };
     constexpr uint32 GetUsThereMoongladeGameTeleId = 636;
     constexpr uint32 GetUsThereAcherusGameTeleId = 2006;
@@ -1168,6 +1170,8 @@ namespace
             case GetUsThereSearchScope::LevelingZones:
                 return destination.category == GetUsThereLevelingZoneCategory ||
                     destination.category == GetUsThereStarterAreaCategory;
+            case GetUsThereSearchScope::PointsOfInterest:
+                return destination.category == GetUsTherePointOfInterestCategory;
         }
 
         return false;
@@ -1953,6 +1957,8 @@ namespace
             scope = GetUsThereSearchScope::DungeonsRaids;
         else if (scopeText == "LEVELING_ZONES")
             scope = GetUsThereSearchScope::LevelingZones;
+        else if (scopeText == "POINTS_OF_INTEREST")
+            scope = GetUsThereSearchScope::PointsOfInterest;
         else
             return false;
 

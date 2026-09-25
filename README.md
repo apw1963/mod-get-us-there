@@ -176,6 +176,29 @@ Shared starter locations remain represented by one authoritative destination wit
 multiple aliases. In particular, Dwarf/Gnome share Coldridge Valley and Orc/Troll
 share Valley of Trials.
 
+### Points of Interest
+
+Points of Interest use the dedicated server-authoritative `Point of Interest`
+destination category and `POINTS_OF_INTEREST` scoped-search token.
+
+The initial live-accepted POI catalog contains:
+
+- Dark Portal - Azeroth (`game_tele_id` 2048, Get Us There synthetic safe arrival)
+- Gurubashi Arena (`game_tele_id` 458)
+- Dark Portal - Outland (`game_tele_id` 1037)
+- Throne of the Elements (`game_tele_id` 1210)
+- Sholazar Waygate (`game_tele_id` 1572)
+- Temple of Storms (`game_tele_id` 1629)
+
+The Azeroth-side Dark Portal does not use stock `game_tele` 1036. Get Us There
+uses synthetic row 2048 at the stock Dark Portal area-trigger landing because
+local creature-density and faction-reaction research found that landing safer
+than the stock teleport point.
+
+POI aliases remain server-authoritative through `mod_get_us_there_alias`.
+Search aliases include the alternate **Stair of Destiny** naming for the
+Outland-side Dark Portal.
+
 Opposing-faction destinations remain discoverable in search across current and
 future destination categories. Visibility does not grant travel permission: the
 server still evaluates normal faction, level, starter-zone, capital, and other
@@ -189,8 +212,14 @@ followed by:
 
 `Enable Screw You! and defy restrictions at your own peril, explorer.`
 
-The main Get Us There window is currently 560 x 640 to provide sufficient room
-for the two-line warning and the lower coordinate/override controls.
+The main Get Us There window is currently 560 x 680. Category browsing uses a
+two-row-capable layout so foreseeable category growth does not require repeated
+window resizing. Current category tabs are **Cities**, **Settlements**,
+**Dungeons & Raids**, **Leveling Zones**, and **Points of Interest**.
+
+The second category row has reserved layout positions for **World Bosses**,
+**Events & Festivals**, and **Favorites**. Unfinished categories are not shown
+until their server/client support and curated destination data are implemented.
 
 ## Development / Test Override
 

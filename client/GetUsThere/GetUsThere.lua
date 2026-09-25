@@ -373,7 +373,7 @@ end)
 
 local frame = CreateFrame("Frame", "GetUsThereFrame", UIParent)
 frame:SetWidth(560)
-frame:SetHeight(640)
+frame:SetHeight(680)
 frame:SetPoint("CENTER")
 frame:SetBackdrop({
     bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -833,13 +833,13 @@ local categoryTabs = {}
 
 local function SetCategoryTabAppearance(button, isActive)
     local fontString = button:GetFontString()
-    local yOffset = -136
+    local yOffset = button.tabY
 
     button:Enable()
     button:ClearAllPoints()
 
     if isActive then
-        yOffset = -132
+        yOffset = button.tabY + 4
         button:SetHeight(26)
         button:SetAlpha(1.0)
         button:SetPoint("TOPLEFT", button.tabX, yOffset)
@@ -860,13 +860,14 @@ local function SetCategoryTabAppearance(button, isActive)
     end
 end
 
-local function CreateCategoryTab(text, scope, x, width)
+local function CreateCategoryTab(text, scope, x, y, width)
     local button =
         CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     button.tabX = x
+    button.tabY = y
     button:SetWidth(width)
     button:SetHeight(22)
-    button:SetPoint("TOPLEFT", x, -136)
+    button:SetPoint("TOPLEFT", x, y)
     button:SetAlpha(0.65)
     button:SetText(text)
     button.searchScope = scope
@@ -875,14 +876,22 @@ local function CreateCategoryTab(text, scope, x, width)
     return button
 end
 
-CreateCategoryTab("Cities", "CITIES", 24, 78)
-CreateCategoryTab("Settlements", "SETTLEMENTS", 106, 96)
-CreateCategoryTab("Dungeons & Raids", "DUNGEONS_RAIDS", 206, 132)
-CreateCategoryTab("Leveling Zones", "LEVELING_ZONES", 342, 118)
+CreateCategoryTab("Cities", "CITIES", 24, -136, 78)
+CreateCategoryTab("Settlements", "SETTLEMENTS", 106, -136, 96)
+CreateCategoryTab("Dungeons & Raids", "DUNGEONS_RAIDS", 206, -136, 132)
+CreateCategoryTab("Leveling Zones", "LEVELING_ZONES", 342, -136, 118)
+
+CreateCategoryTab("Points of Interest", "POINTS_OF_INTEREST", 24, -164, 128)
+
+-- Reserved row-two positions for foreseeable future categories:
+-- World Bosses: x=156, width=100
+-- Events & Festivals: x=260, width=136
+-- Favorites: x=400, width=84
+-- These can be added without another frame resize or lower-UI shift.
 
 local categorySearchLabel =
     frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-categorySearchLabel:SetPoint("TOPLEFT", 24, -170)
+categorySearchLabel:SetPoint("TOPLEFT", 24, -202)
 categorySearchLabel:SetText("Search Cities")
 
 local categorySearchBox =
@@ -893,11 +902,11 @@ local categorySearchBox =
         "InputBoxTemplate")
 categorySearchBox:SetWidth(380)
 categorySearchBox:SetHeight(24)
-categorySearchBox:SetPoint("TOPLEFT", 24, -190)
+categorySearchBox:SetPoint("TOPLEFT", 24, -222)
 categorySearchBox:SetAutoFocus(false)
 
 local resultsLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-resultsLabel:SetPoint("TOPLEFT", 24, -224)
+resultsLabel:SetPoint("TOPLEFT", 24, -256)
 resultsLabel:SetText("Search Results")
 
 local resultsDropDown = CreateFrame(
@@ -905,24 +914,24 @@ local resultsDropDown = CreateFrame(
     "GetUsThereResultsDropDown",
     frame,
     "UIDropDownMenuTemplate")
-resultsDropDown:SetPoint("TOPLEFT", 5, -236)
+resultsDropDown:SetPoint("TOPLEFT", 5, -268)
 UIDropDownMenu_SetWidth(resultsDropDown, 430)
 UIDropDownMenu_SetText(resultsDropDown, "No search yet")
 
 local selected = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-selected:SetPoint("TOPLEFT", 24, -276)
+selected:SetPoint("TOPLEFT", 24, -308)
 selected:SetJustifyH("LEFT")
 selected:SetText("No destination selected.")
 
 local ownerStatus = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-ownerStatus:SetPoint("TOPLEFT", 24, -296)
+ownerStatus:SetPoint("TOPLEFT", 24, -328)
 ownerStatus:SetJustifyH("LEFT")
 ownerStatus:SetTextColor(1, 0.2, 0.2)
 ownerStatus:SetText("")
 ownerStatus:Hide()
 
 local arrivalLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-arrivalLabel:SetPoint("TOPLEFT", 250, -350)
+arrivalLabel:SetPoint("TOPLEFT", 250, -382)
 arrivalLabel:SetText("Arrival")
 arrivalLabel:Hide()
 
@@ -931,17 +940,17 @@ local arrivalDropDown = CreateFrame(
     "GetUsThereArrivalDropDown",
     frame,
     "UIDropDownMenuTemplate")
-arrivalDropDown:SetPoint("TOPLEFT", 228, -360)
+arrivalDropDown:SetPoint("TOPLEFT", 228, -392)
 UIDropDownMenu_SetWidth(arrivalDropDown, 185)
 UIDropDownMenu_SetText(arrivalDropDown, "No arrival choices")
 arrivalDropDown:Hide()
 
 local worldTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-worldTitle:SetPoint("TOPLEFT", 24, -350)
+worldTitle:SetPoint("TOPLEFT", 24, -382)
 worldTitle:SetText("World Coordinates")
 
 local worldCoords = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-worldCoords:SetPoint("TOPLEFT", 24, -372)
+worldCoords:SetPoint("TOPLEFT", 24, -404)
 worldCoords:SetJustifyH("LEFT")
 worldCoords:SetText("Map: --\nX: --\nY: --\nZ: --")
 
@@ -954,7 +963,7 @@ local override = CreateFrame(
     "UIPanelButtonTemplate")
 override:SetWidth(90)
 override:SetHeight(24)
-override:SetPoint("TOPLEFT", 20, -440)
+override:SetPoint("TOPLEFT", 20, -472)
 
 local overrideHelp = frame:CreateFontString(
     nil,
@@ -990,7 +999,7 @@ UpdateOverrideButtonAppearance()
 local raw = CreateFrame("Frame", nil, frame)
 raw:SetWidth(370)
 raw:SetHeight(140)
-raw:SetPoint("TOPLEFT", 24, -485)
+raw:SetPoint("TOPLEFT", 24, -517)
 raw:Hide()
 
 local warning = raw:CreateFontString(nil, "OVERLAY", "GameFontNormal")
