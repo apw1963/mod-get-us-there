@@ -212,14 +212,24 @@ followed by:
 
 `Enable Screw You! and defy restrictions at your own peril, explorer.`
 
-The main Get Us There window is currently 560 x 680. Category browsing uses a
-two-row-capable layout so foreseeable category growth does not require repeated
-window resizing. Current category tabs are **Cities**, **Settlements**,
-**Dungeons & Raids**, **Leveling Zones**, and **Points of Interest**.
+The main Get Us There window is currently 560 x 680 and uses the final
+two-row, eight-tab destination shell:
 
-The second category row has reserved layout positions for **World Bosses**,
-**Events & Festivals**, and **Favorites**. Unfinished categories are not shown
-until their server/client support and curated destination data are implemented.
+- Row 1: **All Destinations**, **Cities**, **Settlements**, **Dungeons & Raids**
+- Row 2: **Leveling Zones**, **Points of Interest**, **World Bosses**,
+  **Events & Festivals**
+
+**All Destinations** is the default tab and uses the same shared search/results
+area as every scoped category. There is no separate duplicate global search box.
+
+The currently implemented search tabs are **All Destinations**, **Cities**,
+**Settlements**, **Dungeons & Raids**, **Leveling Zones**, and
+**Points of Interest**. **World Bosses** and **Events & Festivals** are visible
+as disabled future-category tabs until their separately controlled
+server-authoritative destination work is implemented.
+
+**Favorites** is not part of the current tab architecture. A future saved/starred
+shortcut feature may be reconsidered separately if persistence is later designed.
 
 ## Development / Test Override
 

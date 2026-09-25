@@ -808,20 +808,9 @@ optionsButton:SetScript("OnClick", function()
     end
 end)
 
-local searchLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-searchLabel:SetPoint("TOPLEFT", 24, -58)
-searchLabel:SetText("All Destinations")
-
-local searchBox = CreateFrame("EditBox", "GetUsThereSearchBox", frame, "InputBoxTemplate")
-searchBox:SetWidth(380)
-searchBox:SetHeight(24)
-searchBox:SetPoint("TOPLEFT", 24, -78)
-searchBox:SetAutoFocus(false)
-
 local sendButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
 sendButton:SetWidth(100)
 sendButton:SetHeight(24)
-sendButton:SetPoint("LEFT", searchBox, "RIGHT", 14, 0)
 sendButton:SetText("Send Us")
 sendButton:Disable()
 
@@ -835,8 +824,23 @@ local function SetCategoryTabAppearance(button, isActive)
     local fontString = button:GetFontString()
     local yOffset = button.tabY
 
-    button:Enable()
     button:ClearAllPoints()
+
+    if not button.isAvailable then
+        button:Disable()
+        button:SetHeight(22)
+        button:SetAlpha(0.35)
+        button:SetPoint("TOPLEFT", button.tabX, yOffset)
+        button:UnlockHighlight()
+
+        if fontString then
+            fontString:SetTextColor(0.45, 0.45, 0.45)
+        end
+
+        return
+    end
+
+    button:Enable()
 
     if isActive then
         yOffset = button.tabY + 4
@@ -860,7 +864,7 @@ local function SetCategoryTabAppearance(button, isActive)
     end
 end
 
-local function CreateCategoryTab(text, scope, x, y, width)
+local function CreateCategoryTab(text, scope, x, y, width, isAvailable)
     local button =
         CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     button.tabX = x
@@ -872,27 +876,28 @@ local function CreateCategoryTab(text, scope, x, y, width)
     button:SetText(text)
     button.searchScope = scope
     button.searchLabel = text
+    button.isAvailable = isAvailable ~= false
     table.insert(categoryTabs, button)
     return button
 end
 
-CreateCategoryTab("Cities", "CITIES", 24, -136, 78)
-CreateCategoryTab("Settlements", "SETTLEMENTS", 106, -136, 96)
-CreateCategoryTab("Dungeons & Raids", "DUNGEONS_RAIDS", 206, -136, 132)
-CreateCategoryTab("Leveling Zones", "LEVELING_ZONES", 342, -136, 118)
+CreateCategoryTab("All Destinations", nil, 24, -136, 120)
+CreateCategoryTab("Cities", "CITIES", 148, -136, 78)
+CreateCategoryTab("Settlements", "SETTLEMENTS", 230, -136, 96)
+CreateCategoryTab("Dungeons & Raids", "DUNGEONS_RAIDS", 330, -136, 132)
 
-CreateCategoryTab("Points of Interest", "POINTS_OF_INTEREST", 24, -164, 128)
+CreateCategoryTab("Leveling Zones", "LEVELING_ZONES", 24, -164, 118)
+CreateCategoryTab("Points of Interest", "POINTS_OF_INTEREST", 146, -164, 128)
 
--- Reserved row-two positions for foreseeable future categories:
--- World Bosses: x=156, width=100
--- Events & Festivals: x=260, width=136
--- Favorites: x=400, width=84
--- These can be added without another frame resize or lower-UI shift.
+-- Visible final-shell tabs. Server-authoritative scope wiring belongs to
+-- their separately controlled feature-development phases.
+CreateCategoryTab("World Bosses", nil, 278, -164, 100, false)
+CreateCategoryTab("Events & Festivals", nil, 382, -164, 136, false)
 
 local categorySearchLabel =
     frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 categorySearchLabel:SetPoint("TOPLEFT", 24, -202)
-categorySearchLabel:SetText("Search Cities")
+categorySearchLabel:SetText("Search All Destinations")
 
 local categorySearchBox =
     CreateFrame(
@@ -904,6 +909,8 @@ categorySearchBox:SetWidth(380)
 categorySearchBox:SetHeight(24)
 categorySearchBox:SetPoint("TOPLEFT", 24, -222)
 categorySearchBox:SetAutoFocus(false)
+
+sendButton:SetPoint("LEFT", categorySearchBox, "RIGHT", 14, 0)
 
 local resultsLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 resultsLabel:SetPoint("TOPLEFT", 24, -256)
@@ -1729,7 +1736,7 @@ local pendingTeleportGameTeleId = nil
 local pendingTeleportChoiceId = nil
 local selectedDestination = nil
 local selectedArrivalChoice = nil
-local activeSearchScope = "CITIES"
+local activeSearchScope = nil
 local ClearCuratedSearchStateAfterRawTeleport = nil
 
 local function AllocateRequestId()
@@ -1767,10 +1774,6 @@ local function ShowSelectedDestination(destination)
             destination.levelRestriction.playerLevel,
             destination.levelRestriction.minimumAllowedLevel,
             destination.levelRestriction.recommendedLevel))
-    elseif destination.rivalCapitalFaction then
-        selected:SetText(string.format(
-            "%s - Server error: RIVAL_CAPITAL_BLOCKED",
-            destination.displayName))
     else
         selected:SetText(
             destination.displayName .. " - " .. destination.category)
@@ -1924,12 +1927,7 @@ UIDropDownMenu_Initialize(resultsDropDown, function(self, level)
         local info = UIDropDownMenu_CreateInfo()
         info.fontObject = dropdownTextFont
 
-        if destination.rivalCapitalFaction then
-            info.text = string.format(
-                "%s - %s | RIVAL_CAPITAL_BLOCKED",
-                destination.displayName,
-                destination.category)
-        elseif destination.levelRestriction then
+        if destination.levelRestriction then
             info.text = string.format(
                 "%s - %s | Level %d; %d+ needed",
                 destination.displayName,
@@ -2390,8 +2388,6 @@ ClearCuratedSearchStateAfterRawTeleport = function()
     CancelQueuedSearch()
     CloseDropDownMenus(1)
 
-    searchBox:SetText("")
-    searchBox:ClearFocus()
     categorySearchBox:SetText("")
     categorySearchBox:ClearFocus()
 
@@ -2591,6 +2587,10 @@ local function SendSelectedDestination()
 end
 
 local function ActivateCategoryTab(button)
+    if not button or not button.isAvailable then
+        return
+    end
+
     CancelQueuedSearch()
     CloseDropDownMenus(1)
 
@@ -2630,15 +2630,6 @@ for index = 1, #categoryTabs do
 end
 
 ActivateCategoryTab(categoryTabs[1])
-
-searchBox:SetMaxLetters(96)
-searchBox:SetScript("OnTextChanged", function(self, userInput)
-    ScheduleAutocomplete(self, nil, userInput)
-end)
-searchBox:SetScript("OnEnterPressed", function(self)
-    self:ClearFocus()
-    SendSearchFromEnter(self, nil)
-end)
 
 categorySearchBox:SetMaxLetters(96)
 categorySearchBox:SetScript("OnTextChanged", function(self, userInput)

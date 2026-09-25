@@ -2421,3 +2421,174 @@ not attack him.
 
 The addon version remains `0.2.0`. This is post-release development and does not
 by itself create a new release or tag.
+
+## 2026-09-25 — Final Eight-Tab UI Shell and Rival-Capital Display Cleanup Live Acceptance
+
+This milestone completed and live-accepted the final physical destination-tab
+shell for the current Get Us There client architecture.
+
+The server-authoritative project principle remains unchanged:
+
+> THE ADDON ASKS. THE SERVER DECIDES.
+
+### Final destination-tab shell
+
+The 560 x 680 main client window now presents the final two-row eight-tab shell.
+
+Row 1:
+
+- All Destinations
+- Cities
+- Settlements
+- Dungeons & Raids
+
+Row 2:
+
+- Leveling Zones
+- Points of Interest
+- World Bosses
+- Events & Festivals
+
+All Destinations is now the first tab and the default active tab.
+
+The former standalone/global All Destinations search controls were removed.
+All Destinations now uses the same shared category-search field, Search Results
+dropdown, selected-destination display, and Send Us button as the scoped tabs.
+
+The final live client therefore has one All Destinations interface rather than a
+duplicated global search plus tab.
+
+Existing implemented search scopes remain unchanged:
+
+- All Destinations: unrestricted SEARCH / SEARCH_TEST behavior
+- Cities: CITIES
+- Settlements: SETTLEMENTS
+- Dungeons & Raids: DUNGEONS_RAIDS
+- Leveling Zones: LEVELING_ZONES
+- Points of Interest: POINTS_OF_INTEREST
+
+World Bosses and Events & Festivals are visible in their final physical tab
+positions but are disabled. They do not send fallback/global search requests and
+do not yet invent client-authoritative destination content. Their actual
+server-authoritative scope/catalog work remains deferred to their separately
+controlled feature-development phases.
+
+Favorites was removed from the planned tab architecture. A future genuine
+saved/starred shortcut feature may be reconsidered separately if persistence is
+later designed.
+
+### Live client acceptance
+
+The eight-tab shell was deployed client-side and validated after `/reload`.
+
+Live acceptance confirmed:
+
+- All Destinations is selected by default.
+- There is no separate duplicate All Destinations search above the tab area.
+- all six implemented tabs activate and update the shared search label correctly;
+- World Bosses and Events & Festivals are visible but cannot be selected;
+- the lower Search Results / selected destination / Arrival / World Coordinates /
+  Test Override / Raw Coordinates area remains intact;
+- no clipping or overlap was observed in the accepted 560 x 680 window.
+
+Search regression testing confirmed server-authoritative results for:
+
+- All Destinations
+- Cities
+- Settlements
+- Dungeons & Raids
+- Leveling Zones
+- Points of Interest
+
+Corrected validation examples included:
+
+- Astranaar through Settlements
+- Westfall through Leveling Zones
+- Stormwind City through All Destinations and Cities
+- Molten Core through Dungeons & Raids
+- Dark Portal through Points of Interest
+
+Opposing-faction destinations remained discoverable as required.
+
+On a Horde test character:
+
+- Astranaar displayed the blocked opposing-faction warning;
+- Westfall displayed the normal opposing-faction caution;
+- Stormwind City remained visible while normal rival-capital travel stayed
+  server-authoritatively blocked.
+
+### Enter-key travel safety revalidated
+
+The shared search-box Enter handler remains search-only.
+
+The client path was re-audited after live testing:
+
+- OnEnterPressed calls SendSearchFromEnter();
+- SendSearchFromEnter() only reuses, queues, or sends search requests;
+- SendSelectedDestination() remains separately wired to the explicit Send Us
+  button OnClick handler.
+
+An isolated live test also confirmed that pressing Enter after selecting
+Stormwind City did not move the character.
+
+The invariant remains:
+
+Pressing Enter may search/select/confirm, but it must never itself teleport.
+
+### Rival-capital display cleanup
+
+Live testing exposed a presentation problem rather than a teleport-policy defect.
+
+The server correctly supplied RIVAL_CAPITAL_BLOCKED as search-result status
+metadata for Stormwind City. The client previously rendered that internal status
+as:
+
+Stormwind City - Server error: RIVAL_CAPITAL_BLOCKED
+
+and also exposed RIVAL_CAPITAL_BLOCKED in the results text.
+
+That was misleading because no teleport request was required for the status to
+appear.
+
+The client display was cleaned up so a rival capital now retains its ordinary
+destination presentation, for example:
+
+Stormwind City - Capital
+
+while continuing to show the established player-facing warning:
+
+Opposing Faction Territory.
+Enable Screw You! and defy restrictions at your own peril, explorer.
+
+No server faction policy, teleport authorization, Test Override authorization,
+or protocol behavior was weakened.
+
+### Dungeon / Raid territory-policy clarification
+
+The Horde-side regression test also prompted a read-only review of Stormwind
+Stockade.
+
+Stormwind Stockade does not show an opposing-faction warning because the current
+Dungeon/Raid catalog deliberately stores Dungeon and Raid destinations with
+neutral territory_faction metadata.
+
+The audit confirmed that this same neutral classification currently applies to
+the full Dungeon/Raid catalog, including examples such as:
+
+- Ragefire Chasm
+- Deadmines
+- Stormwind Stockade
+- Gnomeregan
+
+This was therefore treated as existing destination-policy behavior, not an
+eight-tab regression. No Dungeon/Raid faction metadata was changed during this
+milestone.
+
+### Accepted client hashes
+
+Module-side and live-deployed GetUsThere.lua:
+
+`e2c419bb321f33d7bc17df5d8e0b1d0da3f50512f5f393924dee60a0bcc0a13b`
+
+The addon version remains `0.2.0`. This remains post-release development and does
+not by itself create a new release or tag.
