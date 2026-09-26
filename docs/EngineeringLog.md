@@ -2770,3 +2770,29 @@ SHA256:
 
 The addon version remains `0.2.0`. This is post-release development and does not
 by itself create a release or tag.
+
+## 2026-09-26 — 0.3.0 public release promotion preparation
+
+The current client version was promoted from `0.2.0` to `0.3.0` in preparation
+for the next public Get Us There release.
+
+The existing public `v0.2.0` Git tags remain historical and are not moved,
+rewritten, or deleted.
+
+The 0.3.0 release checkpoint follows substantial post-0.2.0 development,
+including:
+
+- native minimap-button support;
+- race and starter-zone aliases;
+- expanded destination travel and safety behavior;
+- the Points of Interest destination category;
+- the final two-row, eight-tab destination shell;
+- the initial World Bosses category and seven-boss catalog.
+
+The module README and bundled client TOC now identify the current client version
+as `0.3.0`.
+
+Historical Engineering Log entries describing earlier `0.2.0` work remain
+unchanged.
+
+This promotion step does not itself create a Git tag or GitHub Release.

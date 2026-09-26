@@ -290,7 +290,7 @@ Normal `SEARCH` and `TELEPORT` requests are separate from Test Override behavior
 The included client addon targets World of Warcraft 3.3.5a with interface number
 `30300`.
 
-Current client addon version: `0.2.0`.
+Current client addon version: `0.3.0`.
 
 ## License
 
