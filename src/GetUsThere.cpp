@@ -957,6 +957,7 @@ namespace
     constexpr char GetUsThereLevelingZoneCategory[] = "Leveling Zone";
     constexpr char GetUsThereStarterAreaCategory[] = "Starter Area";
     constexpr char GetUsTherePointOfInterestCategory[] = "Point of Interest";
+    constexpr char GetUsThereWorldBossCategory[] = "World Boss";
 
     enum class GetUsThereSearchScope
     {
@@ -965,7 +966,8 @@ namespace
         Settlements,
         DungeonsRaids,
         LevelingZones,
-        PointsOfInterest
+        PointsOfInterest,
+        WorldBosses
     };
     constexpr uint32 GetUsThereMoongladeGameTeleId = 636;
     constexpr uint32 GetUsThereAcherusGameTeleId = 2006;
@@ -1172,6 +1174,8 @@ namespace
                     destination.category == GetUsThereStarterAreaCategory;
             case GetUsThereSearchScope::PointsOfInterest:
                 return destination.category == GetUsTherePointOfInterestCategory;
+            case GetUsThereSearchScope::WorldBosses:
+                return destination.category == GetUsThereWorldBossCategory;
         }
 
         return false;
@@ -1959,6 +1963,8 @@ namespace
             scope = GetUsThereSearchScope::LevelingZones;
         else if (scopeText == "POINTS_OF_INTEREST")
             scope = GetUsThereSearchScope::PointsOfInterest;
+        else if (scopeText == "WORLD_BOSSES")
+            scope = GetUsThereSearchScope::WorldBosses;
         else
             return false;
 

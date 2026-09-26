@@ -889,9 +889,10 @@ CreateCategoryTab("Dungeons & Raids", "DUNGEONS_RAIDS", 330, -136, 132)
 CreateCategoryTab("Leveling Zones", "LEVELING_ZONES", 24, -164, 118)
 CreateCategoryTab("Points of Interest", "POINTS_OF_INTEREST", 146, -164, 128)
 
--- Visible final-shell tabs. Server-authoritative scope wiring belongs to
--- their separately controlled feature-development phases.
-CreateCategoryTab("World Bosses", nil, 278, -164, 100, false)
+CreateCategoryTab("World Bosses", "WORLD_BOSSES", 278, -164, 100)
+
+-- Events & Festivals remains visible but disabled until its separately
+-- controlled server-authoritative feature-development phase.
 CreateCategoryTab("Events & Festivals", nil, 382, -164, 136, false)
 
 local categorySearchLabel =

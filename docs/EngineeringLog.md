@@ -2592,3 +2592,181 @@ Module-side and live-deployed GetUsThere.lua:
 
 The addon version remains `0.2.0`. This remains post-release development and does
 not by itself create a new release or tag.
+
+## 2026-09-26 — World Bosses category and initial live catalog
+
+The initial World Bosses feature was implemented, deployed, and live-accepted.
+
+The server-authoritative project principle remains unchanged:
+
+> THE ADDON ASKS. THE SERVER DECIDES.
+
+### World Boss discovery
+
+Local AzerothCore world-data research began with outdoor rank-3 creature
+templates and then narrowed candidates using real creature-loot tables, spawn
+data, movement paths, nearby creature density, and live field inspection.
+
+The accepted initial catalog contains seven bosses:
+
+- Azuregos
+- Doom Lord Kazzak
+- Doomwalker
+- Emeriss
+- Lethon
+- Taerar
+- Ysondre
+
+No client-authored boss list or teleport authority was introduced.
+
+### Server-authoritative World Boss search scope
+
+The server now recognizes:
+
+`WORLD_BOSSES`
+
+as a dedicated scoped-search token.
+
+It maps only to destinations whose category is:
+
+`World Boss`
+
+The client World Bosses tab now sends that scope through the existing shared
+search/results interface.
+
+Events & Festivals remains visible but disabled and has no fallback/global
+search behavior.
+
+### Accepted arrivals
+
+All seven World Boss arrivals were inspected in game before final activation.
+
+Accepted catalog mapping:
+
+- Azuregos -> `game_tele_id` 552, Lake Mennar
+- Doom Lord Kazzak -> `game_tele_id` 2050, `GetUsThereKazzakSafe`
+- Doomwalker -> `game_tele_id` 2051, `GetUsThereDoomwalkerSafe`
+- Emeriss -> `game_tele_id` 518, Jademir Lake
+- Lethon -> `game_tele_id` 851, Shaol'Watha
+- Taerar -> `game_tele_id` 2049, `GetUsThereTaerarSafe`
+- Ysondre -> `game_tele_id` 907, Southfury River
+
+Taerar and Doom Lord Kazzak require dedicated synthetic `game_tele` rows because
+their accepted coordinates are already represented by Get Us There Leveling Zone
+destinations and `game_tele_id` is the primary key of
+`mod_get_us_there_destination`.
+
+Doomwalker uses the field-selected Netherwing Pass arrival:
+
+- Map: 530
+- X: -4284.3022
+- Y: 791.4092
+- Z: 24.135454
+- Orientation: 2.4528096
+
+The other four bosses use previously unowned stock `game_tele` rows.
+
+### Recommended levels and aliases
+
+The catalog uses the existing endgame-content level convention:
+
+- Azuregos, Emeriss, Lethon, Taerar, Ysondre: recommended level 60
+- Doom Lord Kazzak, Doomwalker: recommended level 70
+
+The initial aliases are:
+
+- Doom Lord Kazzak: `Kazzak`
+- Doom Lord Kazzak: `Lord Kazzak`
+- Doomwalker: `Doom Walker`
+
+Aliases remain server-authoritative through `mod_get_us_there_alias`.
+
+### Migration validation and activation
+
+World migration:
+
+`get_us_there_2026_09_26_15.sql`
+
+SHA256:
+
+`49028038867f077aa9b092f34522716004166522a0a1e8d33536fdeaab65a0bc`
+
+Before activation, the migration was executed inside a transaction and rolled
+back successfully.
+
+The dry run confirmed inside the transaction:
+
+- 3 synthetic `game_tele` rows
+- 7 `World Boss` destinations
+- 3 aliases
+
+Post-rollback counts returned to zero.
+
+Normal AzerothCore module database update processing later applied the migration
+and recorded it in the world `updates` table with state `MODULE`.
+
+Live database verification then confirmed exactly:
+
+- 3 synthetic World Boss arrivals
+- 7 World Boss destinations
+- 3 World Boss aliases
+
+### Build and deployment
+
+Accepted server source SHA256:
+
+`372754b6620bd2addf79dbdf764971c6e664419200f028cf52968df98444c368`
+
+Accepted built Get Us There object SHA256:
+
+`bebfa22cae6ae414dee55685cb5de69f3f39097b0f7e1e1f363f8bca258326db`
+
+Accepted live worldserver SHA256:
+
+`b23fe7fd854d283fedd0461d0656e24638730ade39b0fd77c0fe11b24c956b85`
+
+Accepted module-side and live-deployed GetUsThere.lua SHA256:
+
+`0b4d11af4ff7c2305ac0bdc65e73d711c633e69e72dfe61834d0842c17c8da9c`
+
+The pre-activation live binary and Lua were preserved in:
+
+`/mnt/acore-backups/GetUsThere/current/G2186-pre-world-boss-activation-20260926-074427`
+
+### Live acceptance
+
+The World Bosses tab was live-tested after activation.
+
+Live acceptance confirmed:
+
+- World Bosses is enabled and selectable;
+- Events & Festivals remains disabled;
+- Azuregos search returns the World Boss destination;
+- `Kazzak` resolves Doom Lord Kazzak;
+- `Doom Walker` resolves Doomwalker;
+- Stormwind does not leak into the World Bosses scoped search;
+- pressing Enter remains search/select-only and does not teleport;
+- Send Us successfully teleports through the normal server-authoritative path;
+- all seven accepted World Boss destinations were exercised successfully.
+
+Doomwalker initially produced a transient teleport-throttle error during rapid
+testing. Investigation confirmed the existing teleport throttle remains 250 ms,
+the normal successful-teleport cooldown remains 5 seconds, Doomwalker has no
+arrival-choice collision, and no special protocol or data defect was found.
+Repeated later Doomwalker jumps in and out succeeded reliably.
+
+No throttle, cooldown, teleport-safety, request-correlation, faction-policy, or
+Test Override protection was weakened.
+
+### Live-accepted evidence
+
+The final live milestone snapshot is:
+
+`/mnt/acore-backups/GetUsThere/milestone-evidence/GetUsThere-G2195-world-boss-live-accepted-20260926.txt`
+
+SHA256:
+
+`101463ff2e4657fea73fe98944add66357c55e5c76a20bf890cca0d84058da6b`
+
+The addon version remains `0.2.0`. This is post-release development and does not
+by itself create a release or tag.

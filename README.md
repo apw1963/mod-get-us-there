@@ -199,6 +199,34 @@ POI aliases remain server-authoritative through `mod_get_us_there_alias`.
 Search aliases include the alternate **Stair of Destiny** naming for the
 Outland-side Dark Portal.
 
+### World Bosses
+
+World Bosses use the dedicated server-authoritative `World Boss` destination
+category and `WORLD_BOSSES` scoped-search token.
+
+The initial live-accepted World Boss catalog contains:
+
+- Azuregos (`game_tele_id` 552, Lake Mennar)
+- Doom Lord Kazzak (`game_tele_id` 2050, Get Us There synthetic safe arrival)
+- Doomwalker (`game_tele_id` 2051, Get Us There field-selected safe arrival)
+- Emeriss (`game_tele_id` 518, Jademir Lake)
+- Lethon (`game_tele_id` 851, Shaol'Watha)
+- Taerar (`game_tele_id` 2049, Get Us There synthetic safe arrival)
+- Ysondre (`game_tele_id` 907, Southfury River)
+
+Azuregos, Emeriss, Lethon, Taerar, and Ysondre use recommended level 60.
+Doom Lord Kazzak and Doomwalker use recommended level 70, matching the existing
+Classic / Outland endgame-content convention rather than the bosses' +3 creature
+template levels.
+
+Taerar and Doom Lord Kazzak use dedicated synthetic `game_tele` rows because
+their accepted arrival coordinates are also used by existing Leveling Zone
+destinations. Doomwalker uses a dedicated field-selected Netherwing Pass arrival.
+The other four World Bosses use previously unowned stock `game_tele` rows.
+
+World Boss aliases remain server-authoritative. The initial aliases are
+**Kazzak**, **Lord Kazzak**, and **Doom Walker**.
+
 Opposing-faction destinations remain discoverable in search across current and
 future destination categories. Visibility does not grant travel permission: the
 server still evaluates normal faction, level, starter-zone, capital, and other
@@ -223,10 +251,9 @@ two-row, eight-tab destination shell:
 area as every scoped category. There is no separate duplicate global search box.
 
 The currently implemented search tabs are **All Destinations**, **Cities**,
-**Settlements**, **Dungeons & Raids**, **Leveling Zones**, and
-**Points of Interest**. **World Bosses** and **Events & Festivals** are visible
-as disabled future-category tabs until their separately controlled
-server-authoritative destination work is implemented.
+**Settlements**, **Dungeons & Raids**, **Leveling Zones**, **Points of Interest**,
+and **World Bosses**. **Events & Festivals** remains visible but disabled until
+its separately controlled server-authoritative destination work is implemented.
 
 **Favorites** is not part of the current tab architecture. A future saved/starred
 shortcut feature may be reconsidered separately if persistence is later designed.
